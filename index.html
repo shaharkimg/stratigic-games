@@ -431,7 +431,8 @@ let S=null;
 function newGame(site,cityName,ruler){
   S={v:1,t:6,site,cityName,ruler,home:{c:SITES[site].c,r:SITES[site].r},tiles:genMap(),
     res:{food:260,wood:220,stone:120,iron:30,gold:80},goods:{horses:0,salt:0,wine:0,spices:0},
-    pop:120,b:{castle:0,townhall:1,farm:1,lumber:1,housing:1,quarry:0,mine:0,market:0,warehouse:0,granary:0,barracks:0,stable:0,walls:0,watchtower:0,academy:0,port:0},
+    pop:120,b:{castle:0,townhall:1,farm:0,lumber:0,housing:0,quarry:0,mine:0,market:0,warehouse:0,granary:0,barracks:0,stable:0,walls:0,watchtower:0,academy:0,port:0},
+    plot:{townhall:'townhall'},
     queue:[],prio:{food:3,wood:2,stone:2,iron:1,gold:1},units:{spear:0,archer:0,sword:0,scout:0,lcav:0,hcav:0,ram:0,cata:0},rq:[],
     tech:[],rs:null,path:null,district:[],outposts:[],moves:[],offers:[],contracts:[],dec:[],chron:[],reports:[],camps:[],
     npcs:NPCS.map(n=>({...n,rel:0,known:false,treaties:[],war:false,warSince:0,trib:false,bloc:null,lastDemand:-999,trades:0,intel:null,claims:[]})),
@@ -848,11 +849,11 @@ const DEC={
   start:()=>{const R=rates();const net=R.r.food;return{title:'החורף הראשון',
     text:`${S.cityName} קמה: כ-15 בקתות, שדות ומדורה. הזקנים מזהירים שהאוכלוסייה תגדל מהר ממה שהשדות יכולים להאכיל, והמחסנים קטנים. מה עושים קודם?`,
     opts:[{k:'farm',l:'להרחיב את השדות',h:'החווה עולה לרמה 2 מיד'},{k:'lumber',l:'מחנה חוטבים גדול',h:'מחנה החוטבים עולה לרמה 2, ו-80 עץ לבנייה'},{k:'granary',l:'לבנות אסם',h:'אסם רמה 1 (קיבולת מזון +500) ו-60 מזון'}],def:'farm',
-    res:k=>{if(k==='farm')S.b.farm=Math.max(S.b.farm,2);if(k==='lumber'){S.b.lumber=Math.max(2,S.b.lumber);S.res.wood+=80}if(k==='granary'){S.b.granary=Math.max(1,S.b.granary);S.res.food+=60}
+    res:k=>{if(k==='farm'){ensurePlot('farm');S.b.farm=Math.max(S.b.farm,2)}if(k==='lumber'){ensurePlot('lumber');S.b.lumber=Math.max(2,S.b.lumber);S.res.wood+=80}if(k==='granary'){ensurePlot('granary');S.b.granary=Math.max(1,S.b.granary);S.res.food+=60}
       chron(`ההחלטה הראשונה של ${S.ruler}: ${{farm:'להרחיב את השדות',lumber:'לחטוב עצים',granary:'לבנות אסם'}[k]}`,'🌱',1,true);hook('toast','💡 טיפ: קבע סדרי עדיפויות לעובדים במסך העיר, ושדרג מבנים לפי המחסור')}}},
   path:()=>({title:'כיוון ההתפתחות',text:`אחרי יום ראשון מתברר מה ${S.cityName} יכולה להיות. זו לא מחלקה קבועה — רק הצעד הראשון בכיוון.`,
     opts:[{k:'civic',l:'יישוב אזרחי',h:'צמיחת אוכלוסייה +30%, זהב +10%, סוחרים וחקלאים מרוצים'},{k:'industrial',l:'יישוב תעשייתי',h:'עץ, אבן וברזל +10%, בעלי המלאכה מרוצים'},{k:'fortified',l:'יישוב מבוצר',h:'גדר עץ בחינם, הגנה +10%, הצבא מרוצה'}],def:'civic',
-    res:k=>{S.path=k;if(k==='fortified')S.b.walls=Math.max(1,S.b.walls);chron(`${S.cityName} בחרה בדרך: ${{civic:'יישוב אזרחי',industrial:'יישוב תעשייתי',fortified:'יישוב מבוצר'}[k]}`,'🧭',2,true)}}),
+    res:k=>{S.path=k;if(k==='fortified'){ensurePlot('walls');S.b.walls=Math.max(1,S.b.walls)}chron(`${S.cityName} בחרה בדרך: ${{civic:'יישוב אזרחי',industrial:'יישוב תעשייתי',fortified:'יישוב מבוצר'}[k]}`,'🧭',2,true)}}),
   meet:d=>{const n=npc(d.id);return{title:`מפגש ראשון: ${n.n}`,text:`${n.d} הם יודעים עלינו בדיוק כמו שאנחנו יודעים עליהם — כמעט כלום.`,
     opts:[{k:'envoy',l:'לשלוח שליח עם מתנה',h:'20 זהב, יחסים +15',dis:S.res.gold<20},{k:'trade',l:'להציע סחר',h:'יחסים +5 והצעת סחר ראשונה'},{k:'msg',l:'לשלוח הודעת שלום',h:'יחסים +5'},{k:'scout',l:'לרגל אחריהם',h:'מודיעין מלא, אבל יחסים -5 אם יתגלה'}],def:'msg',
     res:k=>{if(k==='envoy'){S.res.gold-=20;n.rel+=15}if(k==='trade'){n.rel+=5;genOffer(n)}if(k==='msg')n.rel+=5;
@@ -936,7 +937,7 @@ function renderRes(){const R=rates();$('#resbar').innerHTML=RES.map(k=>{const v=
 
 /* ---------- sheet ---------- */
 function openSheet(html,tag){UI.sheet=tag||'x';$('#sheet').innerHTML=`<div class="grab"></div>`+html;$('#sheetWrap').classList.add('on');$('#sheet').scrollTop=0}
-function closeSheet(){UI.sheet=null;UI.disp=null;UI.bldId=null;$('#sheetWrap').classList.remove('on');UI.dirty=true}
+function closeSheet(){UI.sheet=null;UI.disp=null;UI.bldId=null;UI.pickPlot=null;$('#sheetWrap').classList.remove('on');UI.dirty=true}
 $('#sheetWrap').addEventListener('click',e=>{if(e.target.id==='sheetWrap')closeSheet()});
 
 /* ---------- map ---------- */
@@ -1082,14 +1083,25 @@ function cvDefsInstall(){if(document.getElementById('cvDefs'))return;
     <linearGradient id="gCrest" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#0E151C" stop-opacity=".96"/><stop offset=".8" stop-color="#0E151C" stop-opacity=".94"/><stop offset="1" stop-color="#0E151C" stop-opacity="0"/></linearGradient>
     ${clips}</defs></svg>`)}
 let SCENE_SIG='';
-function sceneSig(){const q=S.queue[0];return JSON.stringify([S.b,stage(),Math.floor(S.pop/5),q&&q.end!=null?[q.b,q.l,Math.ceil((q.end-S.t)/2)]:'',S.queue.length,UI.labels,Math.round(avgSat())])}
+function plotOf(plotKey){for(const bid in S.plot)if(S.plot[bid]===plotKey)return bid;return null}
+function ensurePlot(id){if(id in S.plot)return;const free=Object.keys(REG).filter(k=>!Object.values(S.plot).includes(k));S.plot[id]=free.includes(id)?id:(free[0]||id)}
+function sceneSig(){const q=S.queue[0];return JSON.stringify([S.b,S.plot,stage(),Math.floor(S.pop/5),q&&q.end!=null?[q.b,q.l,Math.ceil((q.end-S.t)/2)]:'',S.queue.length,UI.labels,Math.round(avgSat())])}
 function avgSat(){const v=Object.values(S.sat);return v.reduce((a,b)=>a+b,0)/v.length}
 function scene(){cvDefsInstall();const q0=S.queue[0];let dim='',hit='',lab='',work='';
-  Object.keys(REG).forEach(id=>{const l=S.b[id]||0;const bq=q0&&q0.end!=null&&q0.b===id;const planned=S.queue.some(q=>q.b===id);
-    if(!l&&id!=='walls'||id==='walls'&&!l){dim+=`<g clip-path="url(#cp_${id})"><use href="#cimg" filter="url(#fDim)"/>${REG[id].map(p=>`<polygon points="${regPts(p)}" fill="none" stroke="rgba(230,200,140,.35)" stroke-width="2" stroke-dasharray="8 6"/>`).join('')}</g>`}
-    if(bq||planned)work+=REG[id].map(p=>`<polygon points="${regPts(p)}" class="cvWork${bq?' on':''}"/>`).join('');
-    hit+=`<g class="cvHit" data-act="bsheet" data-id="${id}">${REG[id].map(p=>`<polygon points="${regPts(p)}"/>`).join('')}</g>`;
-    const[x,y0,bw]=LBL[id];const y=y0-CV_Y;const name=l?tierName(id,l):PLABEL[id];const sub=bq?`⚒ בבנייה · ${fmtDur(q0.end-nowT())}`:l?`רמה ${l}`:'לא נבנה · לבנות';
+  Object.keys(REG).forEach(plotKey=>{
+    const id=plotOf(plotKey);
+    if(!id){
+      dim+=`<g clip-path="url(#cp_${plotKey})"><rect x="0" y="0" width="${CV_W}" height="${CV_H}" fill="#16212B"/><rect x="0" y="0" width="${CV_W}" height="${CV_H}" fill="url(#pHatch)"/></g>${REG[plotKey].map(p=>`<polygon points="${regPts(p)}" fill="none" stroke="rgba(230,200,140,.5)" stroke-width="2" stroke-dasharray="10 7"/>`).join('')}`;
+      hit+=`<g class="cvHit" data-act="plotpick" data-plot="${plotKey}">${REG[plotKey].map(p=>`<polygon points="${regPts(p)}"/>`).join('')}</g>`;
+      const[x,y0]=LBL[plotKey];const y=y0-CV_Y;
+      lab+=`<g class="cvLbl" data-act="plotpick" data-plot="${plotKey}"><circle cx="${x}" cy="${f1(y-6)}" r="17" fill="rgba(14,20,27,.92)" stroke="rgba(230,200,140,.55)" stroke-width="1.5"/><text x="${x}" y="${f1(y-1)}" text-anchor="middle" class="cvN" style="font-size:20px">+</text><text x="${x}" y="${f1(y+22)}" text-anchor="middle" direction="rtl" class="cvS dim">מגרש פנוי · לבנות</text></g>`;
+      return;
+    }
+    const l=S.b[id]||0;const bq=q0&&q0.end!=null&&q0.b===id;const planned=S.queue.some(q=>q.b===id);
+    if(!l){dim+=`<g clip-path="url(#cp_${plotKey})"><use href="#cimg" filter="url(#fDim)"/>${REG[plotKey].map(p=>`<polygon points="${regPts(p)}" fill="none" stroke="rgba(230,200,140,.35)" stroke-width="2" stroke-dasharray="8 6"/>`).join('')}</g>`}
+    if(bq||planned)work+=REG[plotKey].map(p=>`<polygon points="${regPts(p)}" class="cvWork${bq?' on':''}"/>`).join('');
+    hit+=`<g class="cvHit" data-act="bsheet" data-id="${id}">${REG[plotKey].map(p=>`<polygon points="${regPts(p)}"/>`).join('')}</g>`;
+    const[x,y0,bw]=LBL[plotKey];const y=y0-CV_Y;const name=l?tierName(id,l):PLABEL[id];const sub=bq?`⚒ בבנייה · ${fmtDur(q0.end-nowT())}`:l?`רמה ${l}`:'לא נבנה · לבנות';
     const w=Math.max(bw+14,name.length*10.5+26,sub.length*7.2+22),h=50;
     if(UI.labels||!l||bq)lab+=`<g class="cvLbl" data-act="bsheet" data-id="${id}"><rect x="${f1(x-w/2)}" y="${f1(y-h/2)}" width="${f1(w)}" height="${h}" rx="7" fill="rgba(14,20,27,.97)" stroke="${bq?'#E6B64E':!l?'rgba(230,200,140,.35)':'rgba(214,172,78,.5)'}" stroke-width="${bq?2.2:1.2}"/>
       <text x="${x}" y="${f1(y-3)}" text-anchor="middle" direction="rtl" class="cvN">${esc(name)}</text><text x="${x}" y="${f1(y+16)}" text-anchor="middle" direction="rtl" class="cvS${!l?' dim':''}${bq?' gold':''}">${sub}</text></g>`;
@@ -1097,13 +1109,24 @@ function scene(){cvDefsInstall();const q0=S.queue[0];let dim='',hit='',lab='',wo
   const crest=`<g mask="url(#mCrest)"><use href="#cimg" transform="translate(-290,0)"/></g>`;
   const panel=`<g mask="url(#mPanel)"><use href="#cimg" transform="translate(305,0)"/></g>`;
   return`<svg class="cv" width="${CV_W}" height="${CV_H}" viewBox="0 0 ${CV_W} ${CV_H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="מבט על ${esc(S.cityName)}"><use href="#cimg"/>${dim}${work}${hit}${lab}${crest}${panel}</svg>`}
-function bMiniSvg(id){cvDefsInstall();const[x,y,w,h]=regBox(id);const pad=30;const vb=[x-pad,y-pad,w+pad*2,h+pad*2];const l=S.b[id]||0;
-  return`<svg class="cvMini" viewBox="${vb.map(f1).join(' ')}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"><use href="#cimg"/><g opacity=".55"><use href="#cimg" filter="url(#fDim)"/></g><g clip-path="url(#cp_${id})"><use href="#cimg" ${l?'':'filter="url(#fDim)"'}/></g>${REG[id].map(p=>`<polygon points="${regPts(p)}" fill="none" stroke="#E6B64E" stroke-width="3" stroke-dasharray="${l?'0':'10 7'}"/>`).join('')}</svg>`}
+function bMiniSvg(id){cvDefsInstall();const pk=S.plot[id];if(!pk)return'';const[x,y,w,h]=regBox(pk);const pad=30;const vb=[x-pad,y-pad,w+pad*2,h+pad*2];const l=S.b[id]||0;
+  return`<svg class="cvMini" viewBox="${vb.map(f1).join(' ')}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"><use href="#cimg"/><g opacity=".55"><use href="#cimg" filter="url(#fDim)"/></g><g clip-path="url(#cp_${pk})"><use href="#cimg" ${l?'':'filter="url(#fDim)"'}/></g>${REG[pk].map(p=>`<polygon points="${regPts(p)}" fill="none" stroke="#E6B64E" stroke-width="3" stroke-dasharray="${l?'0':'10 7'}"/>`).join('')}</svg>`}
+function openPlotPick(plotKey){UI.pickPlot=plotKey;const avail=Object.keys(B).filter(id=>!(id in S.plot));
+  let h=`<div class="sheetTitle">מגרש פנוי</div><p class="small mute">בחר איזה מבנה להקים במקום הזה.</p>`;
+  if(!avail.length)h+=`<div class="empty">כל סוגי המבנים כבר מוקמו בעיר.</div>`;
+  else BGROUPS.forEach(([g,n])=>{const ids=avail.filter(id=>B[id].g===g);if(!ids.length)return;
+    h+=`<h2>${n}</h2><div class="list">`+ids.map(id=>{const why=bReq(id);const c=bCost(id,1);
+      return`<div class="it"><div class="row between"><div class="grow"><h3>${B[id].ic} ${tierName(id,1)}</h3><div class="small mute">${B[id].d}</div>${!why?`<div class="cost">בנייה: ${costHtml(c)} &nbsp;⏱ ${fmtDur(bTime(id,1))}</div>`:''}</div>
+      <button class="btn sm" data-act="placebuild" data-id="${id}" ${why?'disabled':''} title="${why||''}">להקים כאן</button></div>${why?`<div class="small" style="color:var(--warn)">${why}</div>`:''}</div>`}).join('')+`</div>`});
+  openSheet(h,'plotpick')}
 function bindScene(el){let down=null,moved=0;el.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse')return;down={x:e.clientX,y:e.clientY,s:el.scrollLeft,t:el.scrollTop};moved=0});
   el.addEventListener('pointermove',e=>{if(!down)return;const dx=e.clientX-down.x;moved=Math.abs(dx);el.scrollLeft=down.s-dx});
   window.addEventListener('pointerup',()=>{if(down&&moved>6){const kill=ev=>{ev.stopPropagation();ev.preventDefault()};el.addEventListener('click',kill,{capture:true,once:true});setTimeout(()=>el.removeEventListener('click',kill,{capture:true}),50)}down=null})}
 /* ---------- city ---------- */
-function bRow(id){const d=B[id],l=S.b[id],nl=bLvlQueued(id)+1,mx=bMax(id);const req=bReq(id);const c=nl<=mx?bCost(id,nl):null;const inQ=S.queue.some(q=>q.b===id);
+function bRow(id){const d=B[id];
+  if(!(id in S.plot))return`<div class="it"><div class="row between"><div class="grow"><h3>${d.ic} ${tierName(id,1)} <span class="lvl">טרם נבחר מיקום</span></h3><div class="small mute">${d.d}</div></div>
+    <button class="btn sm ghost" data-act="go" data-v="city">לבחור מיקום בעיר</button></div></div>`;
+  const l=S.b[id],nl=bLvlQueued(id)+1,mx=bMax(id);const req=bReq(id);const c=nl<=mx?bCost(id,nl):null;const inQ=S.queue.some(q=>q.b===id);
   let why=nl>B[id].max?'רמה מרבית':nl>mx?'דורש מרכז כפר גבוה יותר':req||(S.queue.length>=3?'התוכנית מלאה':(!S.queue.length&&c&&!canPay(c))?'חסרים משאבים':null);
   let extra='';if(d.job){const A=alloc();extra=` ${A.w[d.job]}/${A.slots[d.job]} עובדים.`}
   return`<div class="it"><div class="row between"><div class="grow"><h3>${d.ic} ${l?tierName(id,l):tierName(id,1)} <span class="lvl">${l?'רמה '+l:'לא נבנה'}${inQ?' · בתוכנית':''}</span></h3><div class="small mute">${d.d}${extra}</div>
@@ -1317,6 +1340,8 @@ const ACT={
   outpost:d=>{const t=T(UI.tile.c,UI.tile.r);const e=buildOutpost(d.k,t);if(!err(e)){toast(`הבונים יצאו להקים ${OUT[d.k].n}`);closeSheet()}},
   build:d=>{const e=enqueue(d.id);if(!err(e)){toast(`${B[d.id].ic} נוסף לתוכנית הפיתוח`);render(true)}},
   bsheet:d=>openBuilding(d.id),
+  plotpick:d=>openPlotPick(d.plot),
+  placebuild:d=>{const id=d.id,pk=UI.pickPlot;if(!pk||id in S.plot)return;S.plot[id]=pk;UI.pickPlot=null;UI.dirty=true;openBuilding(id)},
   spec:d=>{const e=chooseSpec(d.v);if(!err(e)){toast('🎓 מגמת ההתמחות נקבעה');render(true)}},
   goworld:()=>{closeSheet();UI.screen='world';render(true);centerOn(S.home.c,S.home.r)},
   gorealm:d=>{closeSheet();UI.screen='realm';UI.rtab=d.v;render(true)},
@@ -1396,7 +1421,9 @@ function showIntro(){const I=$('#intro');document.documentElement.style.setPrope
   if(saved)$('#cont').onclick=()=>{I.classList.remove('on');boot(true)}}
 function boot(fromSave){let data=null;try{data=JSON.parse(localStorage.getItem(SAVE_KEY))}catch(e){}
   if(!data||data.v!==1){showIntro();return}
-  S=data;if(S.b.castle==null)S.b.castle=0;if(S.spec===undefined){S.spec=null;S.specAt=0}updateVision();const lastT=S.t;const hrs=Math.min(48,Math.floor((Date.now()-S.seen)/HOUR_MS));
+  S=data;if(S.b.castle==null)S.b.castle=0;if(S.spec===undefined){S.spec=null;S.specAt=0}
+  if(!S.plot){S.plot={};Object.keys(B).forEach(id=>{if(S.b[id]>0)S.plot[id]=id})}
+  updateVision();const lastT=S.t;const hrs=Math.min(48,Math.floor((Date.now()-S.seen)/HOUR_MS));
   for(let i=0;i<hrs;i++)stepHour();UI.screen='city';render(true);if(hrs>=4)openAway(lastT,hrs)}
 if((()=>{try{return !!localStorage.getItem(SAVE_KEY)}catch(e){return false}})())showIntro();else showIntro();
 document.querySelectorAll('[data-ic]').forEach(i=>i.src=ICONS[i.dataset.ic]);
