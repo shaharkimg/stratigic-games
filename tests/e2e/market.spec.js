@@ -6,8 +6,8 @@ async function openMarket(page) {
     S.b.market = 3;
     S.res.wood = 500;
     S.res.gold = 1000;
-    UI.screen = 'realm';
-    UI.rtab = 'trade';
+    UI.screen = 'city';
+    UI.ctab = 'trade';
     render(true);
   });
   await page.waitForTimeout(150);

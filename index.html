@@ -186,7 +186,7 @@ nav#tabs button.on img{box-shadow:0 0 0 2px #D8AC4E,0 0 12px rgba(216,172,78,.5)
 @media (prefers-reduced-motion:reduce){.cvWork.on{animation:none}}
 
 /* ===== full-screen city (bird's-eye) ===== */
-.cmap{position:absolute;inset:0;overflow:hidden;touch-action:none;background:#0F171F;cursor:grab;user-select:none;-webkit-user-select:none}
+.cmap{position:absolute;top:44px;left:0;right:0;bottom:0;overflow:hidden;touch-action:none;background:#0F171F;cursor:grab;user-select:none;-webkit-user-select:none}
 .cmap:active{cursor:grabbing}
 #cityLayer{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
 .cTopL{position:absolute;top:10px;left:10px;display:flex;flex-direction:column;gap:6px;align-items:flex-start;pointer-events:none;direction:rtl}
@@ -221,11 +221,8 @@ nav#tabs button.on img{box-shadow:0 0 0 2px #D8AC4E,0 0 12px rgba(216,172,78,.5)
   <main id="screen"></main>
   <nav id="tabs">
     <button data-s="world"><img data-ic="nav_world" alt=""><span>עולם<small>חקירה · מאחזים</small></span></button>
-    <button data-s="city"><img data-ic="nav_city" alt=""><span>עיר<small>בנייה · צמיחה</small></span></button>
-    <button data-s="realm"><img data-ic="nav_realm" alt=""><span>ממלכה<small>דיפלומטיה · ממשל</small></span></button>
-    <button data-s="research"><img data-ic="nav_research" alt=""><span>מחקר<small>גילויים חדשים</small></span></button>
-    <button data-s="military"><img data-ic="nav_military" alt=""><span>צבא<small>הגנה · כיבוש</small></span></button>
-    <button data-s="economy"><img data-ic="nav_economy" alt=""><span>כלכלה<small>סחר · שוק</small></span></button>
+    <button data-s="city"><img data-ic="nav_city" alt=""><span>עיר<small>בנייה · מסחר · מחקר</small></span></button>
+    <button data-s="realm"><img data-ic="nav_realm" alt=""><span>ממלכה<small>צבא · דיפלומטיה · ממשל</small></span></button>
   </nav>
 </div>
 <div id="sheetWrap"><div id="sheet" role="dialog" aria-modal="true"></div></div>
@@ -984,7 +981,7 @@ const DEC={
     res:k=>{if(k==='yes'){S.res.gold-=150;if(!has('guild'))S.tech.push('guild');S.sat.merchants+=20;chron(`גילדת הסוחרים של ${S.cityName} קיבלה כתב זכויות`,'⚖️',2,true)}}}),
 };
 /* ================= UI core ================= */
-const UI={labels:true,screen:'city',rtab:'trade',layer:'terrain',view:null,dirty:true,mapDirty:true,lastRender:0,pdown:false,disp:null,rq:{},chronF:'all',sheet:null};
+const UI={labels:true,screen:'city',ctab:'build',rtab:'army',layer:'terrain',view:null,dirty:true,mapDirty:true,lastRender:0,pdown:false,disp:null,rq:{},chronF:'all',sheet:null};
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function toast(msg,opts){const box=$('#toasts');if(box.children.length>=3)box.firstChild.remove();const d=document.createElement('div');d.className='toast'+(opts&&opts.err?' err':'');d.textContent=msg;box.appendChild(d);setTimeout(()=>d.remove(),opts&&opts.err?6000:3600)}
@@ -1007,7 +1004,7 @@ function renderTop(){if(!S)return;$('#cityTitle').textContent=S.cityName;$('#cit
   const h=S.t%24;$('#dayLbl').innerHTML=`יום <b>${day()}</b>/${SEASON_DAYS}, ${String(h).padStart(2,'0')}:00`;
   $('#speed').innerHTML=[[0,'❚❚'],[1,'1×'],[3,'3×'],[10,'10×']].map(([v,l])=>`<button data-act="speed" data-v="${v}" class="${S.speed===v?'on':''}" aria-label="מהירות ${l}">${l}</button>`).join('');
   const b=$('#bell');b.textContent=S.dec.length?`🔔 ${S.dec.length}`:'🔔';b.className=S.dec.length?'hot':'';b.dataset.act='bell';
-  const cur=UI.screen!=='realm'?UI.screen:({research:'research',army:'military',trade:'economy'}[UI.rtab]||'realm');document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x.dataset.s===cur))}
+  document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x.dataset.s===UI.screen))}
 function pulseRes(k){const el=document.querySelector(`#resbar [data-k="${k}"]`);if(!el)return;el.classList.remove('pulse');void el.offsetWidth;el.classList.add('pulse')}
 function renderRes(){const R=rates();$('#resbar').innerHTML=RES.map(k=>{const v=S.res[k],c=cap(k),r=R.r[k];const full=k!=='gold'&&v>=c*.97;
   return`<button class="rc ${full?'full':''}" data-act="resinfo" data-k="${k}" aria-label="${RN[k]}"><img src="${ICONS[k]}" alt=""><span class="v">${fmt(v)}</span><span class="d ${r<0?'neg':''}">${r>=0?'+':''}${r.toFixed(1)}/h</span>${k!=='gold'?`<div class="bar"><i style="width:${Math.min(100,v/c*100)}%"></i></div>`:''}</button>`}).join('')}
@@ -1221,8 +1218,11 @@ function bRow(id){const d=B[id];
   return`<div class="it"><div class="row between"><div class="grow"><h3>${d.ic} ${l?tierName(id,l):tierName(id,1)} <span class="lvl">${l?'רמה '+l:'לא נבנה'}${inQ?' · בתוכנית':''}</span></h3><div class="small mute">${d.d}${extra}</div>
     ${c&&nl<=B[id].max?`<div class="cost">${nl===1?'בנייה':'רמה '+nl+(tierName(id,nl)!==tierName(id,nl-1)&&l?` (${tierName(id,nl)})`:'')}: ${costHtml(c)} &nbsp;⏱ ${fmtDur(bTime(id,nl))}</div>`:''}</div>
     <button class="btn sm ${l?'ghost':''}" data-act="build" data-id="${id}" ${why&&why!=='חסרים משאבים'?'disabled':''} title="${why||''}">${l?'שדרג':'בנה'}</button></div>${why&&why!=='חסרים משאבים'&&nl<=B[id].max?`<div class="small" style="color:var(--warn)">${why}</div>`:''}</div>`}
-function renderCity(){const scr=$('#screen');scr.className='map';
-  let cm=$('#cityMap');if(!cm){scr.innerHTML=`<div id="cityMap" class="cmap"><div id="cityLayer"></div>
+function renderCity(){const scr=$('#screen');
+  if(UI.ctab!=='build'){scr.className='';
+    scr.innerHTML=cityTabsHtml()+`<div class="wrap">`+{trade:rTrade,research:rResearch}[UI.ctab]()+`</div>`;return}
+  scr.className='map';
+  let cm=$('#cityMap');if(!cm){scr.innerHTML=cityTabsHtml()+`<div id="cityMap" class="cmap"><div id="cityLayer"></div>
     <div class="cScrimT"></div><div class="cScrimB"></div>
     <div class="cTopL" id="cStats"></div><div class="cTopR" id="cAlert"></div>
     <div class="cZoom"><button data-act="czoom" data-v="1.25" aria-label="התקרב">+</button><button data-act="czoom" data-v=".8" aria-label="התרחק">−</button><button data-act="ccenter" aria-label="מרכז העיר">⌂</button><button data-act="labels" aria-label="שמות מבנים" class="lblBtn">א</button></div>
@@ -1333,10 +1333,12 @@ function bInterior(id){switch(id){
   default:return'';
 }}
 /* ---------- realm ---------- */
-const RT=[['trade','מסחר'],['army','צבא'],['research','מחקר'],['diplo','דיפלומטיה'],['gov','ממשל'],['chron','כרוניקה']];
+const RT=[['army','צבא'],['diplo','דיפלומטיה'],['gov','ממשל'],['chron','כרוניקה']];
 function renderRealm(){const scr=$('#screen');scr.className='';
   let h=`<div class="subtabs">${RT.map(([k,l])=>`<button data-act="rtab" data-v="${k}" class="${UI.rtab===k?'on':''}">${l}</button>`).join('')}</div><div class="wrap">`;
-  h+={trade:rTrade,army:rArmy,research:rResearch,diplo:rDiplo,gov:rGov,chron:rChron}[UI.rtab]();scr.innerHTML=h+`</div>`}
+  h+={army:rArmy,diplo:rDiplo,gov:rGov,chron:rChron}[UI.rtab]();scr.innerHTML=h+`</div>`}
+const CT=[['build','בנייה'],['trade','מסחר'],['research','מחקר']];
+function cityTabsHtml(){return`<div class="subtabs">${CT.map(([k,l])=>`<button data-act="ctab" data-v="${k}" class="${UI.ctab===k?'on':''}">${l}</button>`).join('')}</div>`}
 function mktBtnHtml(k,side,amount,label){
   const quote=mktQuote(k,side,amount);
   const cost=side==='sell'?{[k]:amount}:{gold:quote.total};
@@ -1460,6 +1462,7 @@ const ACT={
   prio:d=>{S.prio[d.k]=+d.v;UI.dirty=true;render(true)},
   district:d=>{if(S.district.length<Math.max(0,stage()-1)){S.district.push(d.k);chron(`${S.cityName} הקימה את ${DISTRICTS[d.k].n}`,'🏙️',2,true)}render(true)},
   rtab:d=>{UI.rtab=d.v;$('#screen').scrollTop=0;render(true)},
+  ctab:d=>{UI.ctab=d.v;$('#screen').scrollTop=0;render(true)},
   accept:d=>{if(!err(acceptOffer(+d.id))){toast('🐪 השיירה יצאה לדרך');render(true)}},
   decline:d=>{declineOffer(+d.id);render(true)},
   mkt:d=>{const e=mkt(d.k,d.s,+d.a);if(!err(e)){toast(d.s==='sell'?'🪙 נמכר בשוק':'🪙 נקנה בשוק');render(true);pulseRes(d.k);pulseRes('gold')}},
@@ -1489,7 +1492,7 @@ document.addEventListener('click',e=>{const el=e.target.closest('[data-act]');if
 // Keyboard activation for the SVG plot controls (role="button" + tabindex,
 // see scene()) — a real <button> gets Enter/Space for free, these do not.
 document.addEventListener('keydown',e=>{if(e.key!=='Enter'&&e.key!==' ')return;const el=e.target.closest('[role="button"][tabindex]');if(!el||el.closest('#mapSvg'))return;e.preventDefault();dispatchActEl(el)});
-document.querySelectorAll('#tabs button').forEach(b=>b.addEventListener('click',()=>{const s=b.dataset.s;const rt={realm:'diplo',research:'research',military:'army',economy:'trade'}[s];if(rt){UI.screen='realm';UI.rtab=rt}else UI.screen=s;$('#screen').scrollTop=0;render(true)}));
+document.querySelectorAll('#tabs button').forEach(b=>b.addEventListener('click',()=>{UI.screen=b.dataset.s;$('#screen').scrollTop=0;render(true)}));
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('#mapSvg'))UI.pdown=true},true);
 document.addEventListener('pointerup',()=>{UI.pdown=false},true);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet()});
