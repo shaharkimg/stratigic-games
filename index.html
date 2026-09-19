@@ -81,6 +81,20 @@ p{margin:0 0 8px}
 .chip.r{border-color:var(--blood);color:var(--blood)}
 .chip.y{border-color:var(--gold);color:var(--gold)}
 .card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--lineGold);border-radius:12px;padding:12px;box-shadow:0 3px 14px rgba(0,0,0,.25)}
+.card.sticky-progress{position:sticky;top:0;z-index:3;margin-bottom:10px}
+.techTree{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-top:8px}
+.techFam h3{font-family:var(--serif);font-size:16px;margin:0 0 8px;color:var(--gold)}
+.techTier{display:flex;flex-direction:column;gap:8px;margin-bottom:8px;padding-inline-start:10px;border-inline-start:2px solid var(--line)}
+.techNode{border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:8px 10px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.techNode .techIc{font-size:15px}
+.techNode .techN{font-weight:700}
+.techNode .techWhy{width:100%;font-size:12.5px;color:var(--warn)}
+.techNode .techCost{width:100%;font-size:12.5px;color:var(--mute)}
+.techNode .techAct{width:100%;margin-top:4px}
+.techNode.done{border-color:var(--good);background:rgba(127,196,122,.08)}
+.techNode.active{border-color:#63A8DC;background:rgba(99,168,220,.1);box-shadow:0 0 0 1px rgba(99,168,220,.35)}
+.techNode.queued{border-color:var(--gold);border-style:dashed}
+.techNode.locked{opacity:.6}
 .alert{background:var(--goldbg);border:1px solid var(--gold);border-radius:12px;padding:10px 12px;margin-bottom:10px;cursor:pointer;display:flex;align-items:center;gap:10px;box-shadow:0 0 16px rgba(216,172,78,.15)}
 .alert b{font-family:var(--serif)}
 .seg{display:inline-flex;background:var(--panel2);border-radius:8px;padding:2px;gap:2px}
@@ -110,6 +124,10 @@ p{margin:0 0 8px}
 .zoom{display:flex;flex-direction:column;gap:4px}
 .zoom button{width:36px;height:36px;border-radius:9px;border:1px solid var(--lineGold);background:var(--panel);box-shadow:var(--shadow);cursor:pointer;font-size:17px;font-weight:700;color:var(--text)}
 .maphint{position:absolute;bottom:8px;right:8px;left:8px;background:var(--panel);border:1px solid var(--lineGold);border-radius:10px;padding:6px 10px;font-size:12.5px;box-shadow:var(--shadow);pointer-events:none;color:var(--mute)}
+.maphint p{margin:4px 0 0}
+.mapLegend{display:flex;flex-wrap:wrap;gap:4px 10px}
+.legItem{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--text)}
+.legItem i{width:10px;height:10px;border-radius:3px;flex-shrink:0;display:inline-block}
 .hx{stroke:rgba(0,0,0,.18);stroke-width:1}
 .cityLbl{font-family:var(--serif);font-weight:700;font-size:12px;paint-order:stroke;stroke:rgba(15,22,28,.8);stroke-width:3px;fill:#F3EAD2}
 .cityLbl.me{fill:#F2C766}
@@ -258,6 +276,7 @@ function normalizeSave(s){
   if(s.b&&s.b.castle==null)s.b.castle=0;
   if(s.spec===undefined){s.spec=null;s.specAt=0}
   if(!s.plot){s.plot={};Object.keys(B).forEach(id=>{if(s.b[id]>0)s.plot[id]=id})}
+  if(s.rsNext===undefined)s.rsNext=null;
 }
 const MIGRATIONS=[
   // {to:2, migrate(s){...}} — add future version-gated steps here.
@@ -478,7 +497,7 @@ function newGame(site,cityName,ruler){
     pop:120,b:{castle:0,townhall:1,farm:0,lumber:0,housing:0,quarry:0,mine:0,market:0,warehouse:0,granary:0,barracks:0,stable:0,walls:0,watchtower:0,academy:0,port:0},
     plot:{townhall:'townhall'},
     queue:[],prio:{food:3,wood:2,stone:2,iron:1,gold:1},units:{spear:0,archer:0,sword:0,scout:0,lcav:0,hcav:0,ram:0,cata:0},rq:[],
-    tech:[],rs:null,path:null,district:[],outposts:[],moves:[],offers:[],contracts:[],dec:[],chron:[],reports:[],camps:[],
+    tech:[],rs:null,rsNext:null,path:null,district:[],outposts:[],moves:[],offers:[],contracts:[],dec:[],chron:[],reports:[],camps:[],
     npcs:NPCS.map(n=>({...n,rel:0,known:false,treaties:[],war:false,warSince:0,trib:false,bloc:null,lastDemand:-999,trades:0,intel:null,claims:[]})),
     market:{food:{p:8,b:8},wood:{p:10,b:10},stone:{p:12,b:12},iron:{p:14,b:14}},
     sat:{farmers:55,craftsmen:50,merchants:45,military:45,scholars:45},rep:{honor:0,trade:0},
@@ -646,8 +665,11 @@ function researchTime(id){let h=TECH[id].time;if(has('scholarship'))h*=.75;if(di
 function specAvail(f){if(S.b.academy<2)return'דורש בית לימוד ברמה 2';if(f===S.spec)return'כבר נבחרה';if(S.spec&&S.t-S.specAt<120)return`אפשר להחליף שוב בעוד ${fmtDur(120-(S.t-S.specAt))}`;if(S.spec&&S.res.gold<100)return'החלפה עולה 100 זהב — אין מספיק';return null}
 function chooseSpec(f){const a=specAvail(f);if(a)return a;if(S.spec)S.res.gold-=100;S.spec=f;S.specAt=S.t;chron(`${S.ruler} קבע מגמת התמחות באקדמיה: ${TFAM[f]}`,'🎓',2,true);return null}
 function startResearch(id){if(S.rs)return'מחקר אחר כבר מתבצע';const a=techAvail(id);if(a)return a;if(!canPay(TECH[id].cost))return'אין מספיק משאבים';pay(TECH[id].cost);S.rs={id,end:S.t+researchTime(id),start:S.t};return null}
+function queueResearch(id){if(S.rs&&S.rs.id===id)return'המחקר הזה כבר מתבצע';if(has(id))return'נחקר';const a=techAvail(id);if(a)return a;S.rsNext=id;return null}
+function unqueueResearch(){S.rsNext=null}
 function processResearch(){if(!S.rs||S.t<S.rs.end)return;const id=S.rs.id;S.tech.push(id);S.rs=null;chron(`גילוי חדש: ${TECH[id].n}`,'💡',2,true);hook('toast',`💡 ${TECH[id].n} — המחקר הושלם`);
   if(id==='ocean'){S.flags.isles=true;ISLES.forEach(k=>{const[c,r]=k.split(',').map(Number);T(c,r).hidden=false;T(c,r).rev=true});addDec('island',{},24);hook('map')}
+  if(S.rsNext){const next=S.rsNext;S.rsNext=null;if(!startResearch(next))chron(`המחקר הבא בתור התחיל אוטומטית: ${TECH[next].n}`,'💡',1)}
   hook('dirty')}
 
 /* ================= movement ================= */
@@ -1077,13 +1099,20 @@ function renderMoves(){const g=$('#movesG');if(!g)return;let s='';
   g.innerHTML=s}
 function applyView(){const g=$('#mapG');if(g&&UI.view)g.setAttribute('transform',`translate(${UI.view.x.toFixed(1)},${UI.view.y.toFixed(1)}) scale(${UI.view.k.toFixed(3)})`)}
 function centerOn(c,r,k){const box=$('#mapBox');if(!box)return;const[x,y]=hc(c,r);const kk=k||UI.view&&UI.view.k||1.15;UI.view={k:kk,x:box.clientWidth/2-x*kk,y:box.clientHeight/2-y*kk};applyView()}
+function mapLegendHtml(){
+  const item=(col,label,dash)=>`<span class="legItem"><i style="background:${dash?'none':col};${dash?`border-bottom:2px dashed ${col}`:''}"></i>${label}</span>`;
+  if(UI.layer==='terrain')return Object.values(BIO).map(b=>item(b.col,b.n)).join('');
+  if(UI.layer==='political')return item('#D8AC4E','השטח שלך')+item('#63A8DC','גושים ומדינות אחרות')+item('#C0392B','שטח במחלוקת',true);
+  if(UI.layer==='trade')return item('#E0AE3F','שיירות/חוזים פעילים',true)+item('#7A5B2E','דרכים סלולות');
+  if(UI.layer==='military')return item('#5BB15B','אספקה מלאה')+item('#E0B24F','אספקה מתוחה')+item('#F5B5A5','הערכת מודיעין (מספר)');
+  return''}
 function renderWorld(){const scr=$('#screen');scr.className='map';
   const L=[['terrain','שטח'],['political','פוליטי'],['trade','סחר'],['military','צבא']];
   const hint={terrain:'גע במשבצת כדי לחקור, להקים מאחז או לשלוח צבא.',political:'צהוב: השטח שלך. צבעים: גושים ומדינות. קו אדום מקווקו: שטח במחלוקת.',trade:'דרכים, נתיבי נהר וקווי החוזים שלך.',military:'ירוק: אספקה מלאה. צהוב: אספקה מתוחה. מספרים: הערכת מודיעין.'}[UI.layer];
   scr.innerHTML=`<div id="mapBox"><svg id="mapSvg" xmlns="http://www.w3.org/2000/svg"><g id="mapG"><g id="tilesG">${renderMapSvg()}</g><g id="movesG"></g></g></svg>
     <div class="mapctl"><div class="seg">${L.map(([k,l])=>`<button data-act="layer" data-v="${k}" class="${UI.layer===k?'on':''}">${l}</button>`).join('')}</div>
     <div class="zoom"><button data-act="zoom" data-v="1.25" aria-label="התקרב">+</button><button data-act="zoom" data-v=".8" aria-label="התרחק">−</button><button data-act="home" aria-label="מרכז על העיר">⌂</button></div></div>
-    <div class="maphint">${hint}</div></div>`;
+    <div class="maphint"><div class="mapLegend">${mapLegendHtml()}</div><p>${hint}</p></div></div>`;
   UI.mapDirty=false;if(!UI.view)centerOn(S.home.c,S.home.r,1.15);else applyView();renderMoves();bindMap()}
 function refreshMapTiles(){const g=$('#tilesG');if(g){g.innerHTML=renderMapSvg();UI.mapDirty=false}}
 function bindMap(){const svg=$('#mapSvg');const P=new Map();let moved=0,startT=null,pinch=null;
@@ -1407,15 +1436,36 @@ function rArmy(){const sold=soldiers();const att=armyPow(S.units,'att','plains')
   h+=`<h2>גיוס</h2>`+recruitListHtml(u=>true);
   const f=S.moves.filter(m=>m.kind==='army'||m.kind==='ret'||m.kind==='build');if(f.length)h+=`<h2>בשטח</h2><div class="list">`+f.map(m=>{const s=supplyAt(m.to.c,m.to.r);return`<div class="it small">${m.kind==='build'?'🔨 בונים '+OUT[m.type].n:m.kind==='ret'?'🛡️ חוזרים הביתה: '+unitsStr(m.units):'⚔️ '+MISSION[m.mission]+': '+unitsStr(m.units)} ${m.kind==='army'?`<span class="chip ${s[0]}">${s[2]}</span>`:''} — <span data-end="${m.t1}"></span><div class="pbar"><i data-s="${m.t0}" data-e="${m.t1}"></i></div></div>`}).join('')+`</div>`;
   h+=`<h2>פקודות קבע</h2><p class="small mute">מה לעשות כשאתה לא כאן. המשחק מחכה לך — העולם לא.</p>
-  <div class="row between" style="margin:8px 0"><span class="small">שודדים ליד העיר</span><div class="seg"><button data-act="order" data-k="raid" data-v="fight" class="${S.orders.raid==='fight'?'on':''}">לתקוף</button><button data-act="order" data-k="raid" data-v="pay" class="${S.orders.raid==='pay'?'on':''}">לשלם</button></div></div>
-  <div class="row between" style="margin:8px 0"><span class="small">צבא אויב מתקרב</span><div class="seg"><button data-act="order" data-k="incoming" data-v="defend" class="${S.orders.incoming==='defend'?'on':''}">להגן</button><button data-act="order" data-k="incoming" data-v="pay" class="${S.orders.incoming==='pay'?'on':''}">כופר</button><button data-act="order" data-k="incoming" data-v="allies" class="${S.orders.incoming==='allies'?'on':''}">בעלי ברית</button></div></div>`;
+  <div class="row between" style="margin:8px 0"><span class="small" id="ordRaidLbl">שודדים ליד העיר</span><div class="seg" role="group" aria-labelledby="ordRaidLbl"><button data-act="order" data-k="raid" data-v="fight" aria-pressed="${S.orders.raid==='fight'}" class="${S.orders.raid==='fight'?'on':''}">לתקוף</button><button data-act="order" data-k="raid" data-v="pay" aria-pressed="${S.orders.raid==='pay'}" class="${S.orders.raid==='pay'?'on':''}">לשלם</button></div></div>
+  <div class="row between" style="margin:8px 0"><span class="small" id="ordIncLbl">צבא אויב מתקרב</span><div class="seg" role="group" aria-labelledby="ordIncLbl"><button data-act="order" data-k="incoming" data-v="defend" aria-pressed="${S.orders.incoming==='defend'}" class="${S.orders.incoming==='defend'?'on':''}">להגן</button><button data-act="order" data-k="incoming" data-v="pay" aria-pressed="${S.orders.incoming==='pay'}" class="${S.orders.incoming==='pay'?'on':''}">כופר</button><button data-act="order" data-k="incoming" data-v="allies" aria-pressed="${S.orders.incoming==='allies'}" class="${S.orders.incoming==='allies'?'on':''}">בעלי ברית</button></div></div>`;
   h+=`<h2>דוחות קרב</h2>`+(S.reports.length?`<div class="list">`+S.reports.map(r=>`<div class="it row between" data-act="report" data-id="${r.id}" style="cursor:pointer"><span>${r.win?'⚔️':'🩸'} ${esc(r.title)}</span><span class="small mute">יום ${Math.floor(r.t/24)+1}</span></div>`).join('')+`</div>`:`<div class="empty">עוד לא היו קרבות.</div>`);
   return h}
+function techNodeState(id){if(has(id))return'done';if(S.rs&&S.rs.id===id)return'active';if(S.rsNext===id)return'queued';return techAvail(id)?'locked':'available'}
+function techNodeHtml(id){const d=TECH[id],st=techNodeState(id),a=techAvail(id);
+  const icon={done:'✓',active:'⚒',queued:'📋',locked:'🔒',available:''}[st];
+  let action='';
+  if(st==='available')action=S.rs?`<button class="btn sm ghost" data-act="queueresearch" data-id="${id}">להוסיף לתור</button>`:`<button class="btn sm" data-act="research" data-id="${id}">לחקור</button>`;
+  else if(st==='queued')action=`<button class="btn sm ghost" data-act="unqueueresearch">להסיר מהתור</button>`;
+  return`<div class="techNode ${st}" role="group" aria-label="${esc(d.n)} — ${{done:'הושלם',active:'נחקר כעת',queued:'בתור',locked:a||'',available:'זמין למחקר'}[st]}">
+    <span class="techIc" aria-hidden="true">${icon}</span><span class="techN">${esc(d.n)}</span>
+    ${st==='locked'?`<span class="techWhy">${esc(a)}</span>`:st==='available'||st==='queued'?`<span class="techCost">${costHtml(d.cost)} · ${fmtDur(researchTime(id))}</span>`:''}
+    ${action?`<div class="techAct">${action}</div>`:''}
+  </div>`}
 function rResearch(){let h=`<h2>מחקר</h2>`;
-  if(S.b.academy<1)h+=`<div class="empty">בנה בית לימוד (דורש בית מועצה) כדי להתחיל לחקור. גילויים מסוימים נפתחים רק לפי הגיאוגרפיה והמעשים שלך.</div>`;
-  if(S.rs)h+=`<div class="card"><b>💡 ${TECH[S.rs.id].n}</b><div class="small mute">מסתיים בעוד <span data-end="${S.rs.end}"></span></div><div class="pbar"><i data-s="${S.rs.start}" data-e="${S.rs.end}"></i></div></div>`;
-  Object.entries(TFAM).forEach(([f,fn])=>{h+=`<h2>${fn}</h2><div class="list">`+Object.entries(TECH).filter(([k,d])=>d.f===f).map(([k,d])=>{const a=techAvail(k);const done=has(k);
-    return`<div class="it"><div class="row between"><div class="grow"><b>${done?'✓ ':''}${d.n}</b> <span class="lvl">שלב ${d.tier}</span><div class="small mute">${d.d}</div>${done?'':a?`<div class="small" style="color:var(--warn)">${a}</div>`:`<div class="cost">${costHtml(d.cost)} &nbsp;⏱ ${fmtDur(researchTime(k))}</div>`}</div>${done||a?'':`<button class="btn sm" data-act="research" data-id="${k}" ${S.rs?'disabled':''}>לחקור</button>`}</div></div>`}).join('')+`</div>`});
+  if(S.b.academy<1){h+=`<div class="empty">בנה בית לימוד (דורש בית מועצה) כדי להתחיל לחקור. גילויים מסוימים נפתחים רק לפי הגיאוגרפיה והמעשים שלך.</div>`;return h}
+  h+=`<div class="card sticky-progress">`;
+  h+=S.rs?`<b>⚒ ${TECH[S.rs.id].n}</b><div class="small mute">מסתיים בעוד <span data-end="${S.rs.end}"></span></div><div class="pbar"><i data-s="${S.rs.start}" data-e="${S.rs.end}"></i></div>`
+    :`<b class="mute">אין מחקר פעיל כרגע</b>`;
+  if(S.rsNext)h+=`<div class="small mute" style="margin-top:6px">בתור הבא: <b>${TECH[S.rsNext].n}</b> <button class="btn sm ghost" data-act="unqueueresearch" style="margin-inline-start:6px">להסיר</button></div>`;
+  h+=`</div>`;
+  h+=`<div class="techTree">`+Object.entries(TFAM).map(([f,fn])=>{
+    const tiers=[1,2,3].map(tier=>{
+      const ids=Object.keys(TECH).filter(k=>TECH[k].f===f&&TECH[k].tier===tier);
+      if(!ids.length)return'';
+      return`<div class="techTier">${ids.map(techNodeHtml).join('')}</div>`;
+    }).join('');
+    return`<div class="techFam"><h3>${fn}</h3>${tiers}</div>`;
+  }).join('')+`</div>`;
   if(S.stats.artifacts.length)h+=`<h2>ממצאים</h2><div class="list">`+S.stats.artifacts.map(n=>{const a=ARTIFACTS.find(x=>x.n===n);return`<div class="it small">🏺 <b>${a.n}</b> — ${a.d}</div>`}).join('')+`</div>`;
   return h}
 function rDiplo(){const kn=S.npcs.filter(n=>n.known).sort((a,b)=>hd(a,S.home)-hd(b,S.home));
@@ -1499,9 +1549,11 @@ const ACT={
   mkt:d=>{const e=mkt(d.k,d.s,+d.a);if(!err(e)){toast(d.s==='sell'?'🪙 נמכר בשוק':'🪙 נקנה בשוק');render(true);pulseRes(d.k);pulseRes('gold')}},
   rqs:d=>{UI.rq[d.u]=clamp((UI.rq[d.u]||5)+(+d.v),1,200);render(true)},
   recruit:d=>{const e=recruit(d.u,UI.rq[d.u]||5);if(!err(e)){toast(`${U[d.u].ic} האימון התחיל`);render(true)}},
-  order:d=>{S.orders[d.k]=d.v;render(true)},
+  order:d=>{S.orders[d.k]=d.v;toast('✓ הפקודה נשמרה');render(true)},
   report:d=>openReport(+d.id),
   research:d=>{const e=startResearch(d.id);if(!err(e)){toast(`💡 המחקר התחיל: ${TECH[d.id].n}`);render(true)}},
+  queueresearch:d=>{const e=queueResearch(d.id);if(!err(e)){toast(`📋 ${TECH[d.id].n} — בתור למחקר הבא`);render(true)}},
+  unqueueresearch:()=>{unqueueResearch();render(true)},
   npcsheet:d=>openNpc(d.id),
   treaty:d=>{const e=proposeTreaty(npc(UI.npcId),d.k);if(e)toast(e);else toast('ההצעה התקבלה!');openNpc(UI.npcId)},
   gift:()=>{err(gift(npc(UI.npcId)));openNpc(UI.npcId)},

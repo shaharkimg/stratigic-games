@@ -4,7 +4,7 @@ import { loadGame } from './helpers/loadGame.js';
 
 test('migrateSave: current-shape save is a no-op (only sets v if missing)', () => {
   const { migrateSave } = loadGame();
-  const save = { v: 1, b: { castle: 3, townhall: 1 }, spec: null, specAt: 0, plot: { townhall: 'townhall' } };
+  const save = { v: 1, b: { castle: 3, townhall: 1 }, spec: null, specAt: 0, plot: { townhall: 'townhall' }, rsNext: null };
   const before = JSON.stringify(save);
   const out = migrateSave(save);
   assert.equal(JSON.stringify(save), before, 'should not mutate an already-current save beyond what migration steps touch');
@@ -27,6 +27,13 @@ test('migrateSave: legacy save missing S.spec gets default null/0', () => {
   const out = migrateSave(save);
   assert.equal(out.spec, null);
   assert.equal(out.specAt, 0);
+});
+
+test('migrateSave: legacy save missing S.rsNext (pre-research-queue) gets defaulted to null', () => {
+  const { migrateSave } = loadGame();
+  const save = { v: 1, b: { castle: 1 } };
+  const out = migrateSave(save);
+  assert.equal(out.rsNext, null);
 });
 
 test('migrateSave: pre-versioned save (no v field) runs migration and gets stamped', () => {
