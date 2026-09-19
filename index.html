@@ -1479,7 +1479,23 @@ function openNpc(id){const n=npc(id);UI.npcId=id;let h=`<div class="sheetTitle">
   else{h+=`<h3 style="margin-top:12px">הסכמים</h3><div class="list">`+Object.entries(TREATY).map(([k,t])=>`<div class="it row between small"><span><b>${t.n}</b> <span class="mute">${{NA:'לא תוקפים זה את זה',RA:'חוזה משאבים ל-5 ימים',OB:'שדה ראייה ואספקה בשטחם',FT:'הצעות סחר טובות ב-12%',MD:'שולחים תגבורת בזמן מתקפה'}[k]}</span></span>${n.treaties.includes(k)?'<span class="chip g">בתוקף</span>':`<button class="btn sm ghost" data-act="treaty" data-k="${k}">להציע</button>`}</div>`).join('')+`</div>
     <div class="row" style="margin-top:10px;flex-wrap:wrap;gap:6px"><button class="btn" data-act="gift">מתנה (50 זהב)</button>${n.treaties.length?`<button class="btn ghost" data-act="breakt" style="color:var(--bad)">להפר את ההסכמים</button>`:''}<button class="btn ghost" data-act="maptile" data-c="${n.c}" data-r="${n.r}">במפה</button></div>`}
   openSheet(h,'npc')}
+function govRoadmapHtml(){
+  const leagueDone=!!S.bloc,nationDone=!!S.nation,kingdomDone=!!(S.nation&&S.nation.gov==='monarchy');
+  const nationOk=S.bloc==='own'&&day()>=18&&has('admin')&&S.own.members.length>=2&&S.b.castle>=1;
+  const stages=[
+    {n:'ליגה',done:leagueDone,active:!leagueDone,why:leagueDone?'':'הצטרף לגוש קיים, או ייסד ליגה עם 2+ שכנים שיש איתם הסכם ויחסים 35+'},
+    {n:'אומה',done:nationDone,active:leagueDone&&!nationDone,
+      why:nationDone?'':S.bloc!=='own'?'רק מייסד הליגה יכול להכריז על אומה':nationOk?'':'דורש יום 18+, מחקר מנהל, מבצר ברמה 1+, ו-2 חברי ליגה לפחות'},
+    {n:'ממלכה',done:kingdomDone,active:false, // decided once, at nation declaration — never a separately-actionable step
+      why:kingdomDone?'':!nationDone?'נקבע בעת הכרזת האומה — בחר "מלוכה" כצורת הממשל':`האומה בחרה ${GOVS[S.nation.gov].n} כצורת ממשל`},
+  ];
+  return`<div class="techTree" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))"><div class="techTier" style="border-inline-start:none;flex-direction:row;flex-wrap:wrap">`+
+    stages.map(s=>`<div class="techNode ${s.done?'done':s.active?'active':'locked'}" style="flex:1;min-width:150px" role="group" aria-label="${s.n} — ${s.done?'הושג':s.active?'בהישג יד':'נעול'}">
+      <span class="techIc" aria-hidden="true">${s.done?'✓':s.active?'⚑':'🔒'}</span><span class="techN">${s.n}</span>
+      ${s.why?`<span class="techWhy">${esc(s.why)}</span>`:''}
+    </div>`).join('')+`</div></div>`}
 function rGov(){let h=`<h2>${esc(S.ruler)} ${epithet()}</h2><p class="small mute">השושלת של ${esc(S.ruler)}. הכינוי נקבע לפי המעשים, לא לפי בחירה.</p>`;
+  h+=`<h2>מסלול הריבונות</h2>${govRoadmapHtml()}`;
   if(!S.bloc){const cands=leagueCandidates();h+=`<h2>ליגה</h2><p class="small">${S.cityName} עצמאית. אפשר להצטרף לגוש כשמזמינים אותך, או לייסד ליגה משלך עם שני שכנים לפחות שיש לכם הסכם ויחסים של 35 ומעלה.</p>`;
     h+=cands.length>=2?`<button class="btn gold" data-act="league">לייסד ליגה (${cands.length} מועמדים)</button>`:`<div class="empty">מועמדים כרגע: ${cands.map(n=>n.n).join(', ')||'אין'}. חתום על הסכמים ובנה יחסים.</div>`}
   else if(S.bloc==='own'){h+=`<h2>${esc(S.own.n)}</h2><p class="small">חברים: ${S.own.members.map(i=>npc(i).n).join(', ')}. שדה ראייה משותף, עמלות נמוכות והגנה הדדית.</p>`;
