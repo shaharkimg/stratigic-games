@@ -1,10 +1,14 @@
 // @ts-check
 import { defineConfig, devices } from '@playwright/test';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const indexUrl = 'file://' + path.join(__dirname, 'index.html');
+const configuredChromium = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+const legacyChromium = '/opt/pw-browsers/chromium';
+const executablePath = configuredChromium || (fs.existsSync(legacyChromium) ? legacyChromium : undefined);
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -20,7 +24,9 @@ export default defineConfig({
     // browser auto-download is disabled here) — point every project at it
     // directly instead of the "Desktop Chrome" device preset's default
     // chrome-headless-shell channel, which isn't present on disk.
-    launchOptions: { executablePath: '/opt/pw-browsers/chromium' },
+    // Use an explicitly configured/system browser when available, otherwise
+    // let Playwright use the browser revision installed for this package.
+    launchOptions: executablePath ? { executablePath } : {},
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
