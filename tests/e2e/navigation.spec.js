@@ -46,6 +46,21 @@ test.describe('navigation', () => {
     expect(errors).toEqual([]);
   });
 
+  test('the three bottom tabs fill the full width of the bar (no leftover grid columns)', async ({ page }) => {
+    // Regression check: a leftover CSS rule from before the 6->3 tab
+    // consolidation still hardcoded grid-template-columns:repeat(6,1fr) on
+    // nav#tabs, which left half the bar empty since only 3 buttons exist.
+    await startNewGame(page);
+    const barWidth = await page.locator('#tabs').evaluate((el) => el.getBoundingClientRect().width);
+    const rects = await page.locator('#tabs button').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON()));
+    const totalButtonWidth = rects.reduce((sum, r) => sum + r.width, 0);
+    expect(totalButtonWidth).toBeGreaterThan(barWidth * 0.95);
+    const minX = Math.min(...rects.map((r) => r.left));
+    const maxX = Math.max(...rects.map((r) => r.right));
+    expect(minX).toBeLessThan(5);
+    expect(maxX).toBeGreaterThan(barWidth - 5);
+  });
+
   test('the same screen never appears both on the bottom bar and as a sub-tab at once', async ({ page }) => {
     await startNewGame(page);
     const bottomTabs = await page.locator('#tabs button').evaluateAll((els) => els.map((e) => e.dataset.s));
