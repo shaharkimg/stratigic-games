@@ -1097,11 +1097,12 @@ function scene(){cvDefsInstall();const q0=S.queue[0];let dim='',hit='',lab='',wo
       lab+=`<g class="cvLbl" data-act="plotpick" data-plot="${plotKey}"><circle cx="${x}" cy="${f1(y-6)}" r="17" fill="rgba(14,20,27,.92)" stroke="rgba(230,200,140,.55)" stroke-width="1.5"/><text x="${x}" y="${f1(y-1)}" text-anchor="middle" class="cvN" style="font-size:20px">+</text><text x="${x}" y="${f1(y+22)}" text-anchor="middle" direction="rtl" class="cvS dim">מגרש פנוי · לבנות</text></g>`;
       return;
     }
-    const l=S.b[id]||0;const bq=q0&&q0.end!=null&&q0.b===id;const planned=S.queue.some(q=>q.b===id);
+    const l=S.b[id]||0;const bq=q0&&q0.end!=null&&q0.b===id;const planned=S.queue.some(q=>q.b===id);const mismatch=id!==plotKey;
     if(!l){dim+=`<g clip-path="url(#cp_${plotKey})"><use href="#cimg" filter="url(#fDim)"/>${REG[plotKey].map(p=>`<polygon points="${regPts(p)}" fill="none" stroke="rgba(230,200,140,.35)" stroke-width="2" stroke-dasharray="8 6"/>`).join('')}</g>`}
+    else if(mismatch){dim+=`<g clip-path="url(#cp_${plotKey})"><use href="#cimg"/><rect x="0" y="0" width="${CV_W}" height="${CV_H}" fill="rgba(14,20,27,.55)"/></g>`}
     if(bq||planned)work+=REG[plotKey].map(p=>`<polygon points="${regPts(p)}" class="cvWork${bq?' on':''}"/>`).join('');
     hit+=`<g class="cvHit" data-act="bsheet" data-id="${id}">${REG[plotKey].map(p=>`<polygon points="${regPts(p)}"/>`).join('')}</g>`;
-    const[x,y0,bw]=LBL[plotKey];const y=y0-CV_Y;const name=l?tierName(id,l):PLABEL[id];const sub=bq?`⚒ בבנייה · ${fmtDur(q0.end-nowT())}`:l?`רמה ${l}`:'לא נבנה · לבנות';
+    const[x,y0,bw]=LBL[plotKey];const y=y0-CV_Y;const name=(l&&mismatch?B[id].ic+' ':'')+(l?tierName(id,l):PLABEL[id]);const sub=bq?`⚒ בבנייה · ${fmtDur(q0.end-nowT())}`:l?`רמה ${l}`:'לא נבנה · לבנות';
     const w=Math.max(bw+14,name.length*10.5+26,sub.length*7.2+22),h=50;
     if(UI.labels||!l||bq)lab+=`<g class="cvLbl" data-act="bsheet" data-id="${id}"><rect x="${f1(x-w/2)}" y="${f1(y-h/2)}" width="${f1(w)}" height="${h}" rx="7" fill="rgba(14,20,27,.97)" stroke="${bq?'#E6B64E':!l?'rgba(230,200,140,.35)':'rgba(214,172,78,.5)'}" stroke-width="${bq?2.2:1.2}"/>
       <text x="${x}" y="${f1(y-3)}" text-anchor="middle" direction="rtl" class="cvN">${esc(name)}</text><text x="${x}" y="${f1(y+16)}" text-anchor="middle" direction="rtl" class="cvS${!l?' dim':''}${bq?' gold':''}">${sub}</text></g>`;
@@ -1109,8 +1110,8 @@ function scene(){cvDefsInstall();const q0=S.queue[0];let dim='',hit='',lab='',wo
   const crest=`<g mask="url(#mCrest)"><use href="#cimg" transform="translate(-290,0)"/></g>`;
   const panel=`<g mask="url(#mPanel)"><use href="#cimg" transform="translate(305,0)"/></g>`;
   return`<svg class="cv" width="${CV_W}" height="${CV_H}" viewBox="0 0 ${CV_W} ${CV_H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="מבט על ${esc(S.cityName)}"><use href="#cimg"/>${dim}${work}${hit}${lab}${crest}${panel}</svg>`}
-function bMiniSvg(id){cvDefsInstall();const pk=S.plot[id];if(!pk)return'';const[x,y,w,h]=regBox(pk);const pad=30;const vb=[x-pad,y-pad,w+pad*2,h+pad*2];const l=S.b[id]||0;
-  return`<svg class="cvMini" viewBox="${vb.map(f1).join(' ')}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"><use href="#cimg"/><g opacity=".55"><use href="#cimg" filter="url(#fDim)"/></g><g clip-path="url(#cp_${pk})"><use href="#cimg" ${l?'':'filter="url(#fDim)"'}/></g>${REG[pk].map(p=>`<polygon points="${regPts(p)}" fill="none" stroke="#E6B64E" stroke-width="3" stroke-dasharray="${l?'0':'10 7'}"/>`).join('')}</svg>`}
+function bMiniSvg(id){cvDefsInstall();const pk=S.plot[id];if(!pk)return'';const[x,y,w,h]=regBox(pk);const pad=30;const vb=[x-pad,y-pad,w+pad*2,h+pad*2];const l=S.b[id]||0;const mismatch=l&&id!==pk;const cx=x+w/2,cy=y+h/2;
+  return`<svg class="cvMini" viewBox="${vb.map(f1).join(' ')}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"><use href="#cimg"/><g opacity=".55"><use href="#cimg" filter="url(#fDim)"/></g><g clip-path="url(#cp_${pk})"><use href="#cimg" ${l?'':'filter="url(#fDim)"'}/>${mismatch?`<rect x="0" y="0" width="${CV_W}" height="${CV_H}" fill="rgba(14,20,27,.55)"/>`:''}</g>${REG[pk].map(p=>`<polygon points="${regPts(p)}" fill="none" stroke="#E6B64E" stroke-width="3" stroke-dasharray="${l?'0':'10 7'}"/>`).join('')}${mismatch?`<circle cx="${f1(cx)}" cy="${f1(cy)}" r="${f1(Math.min(w,h)*.22)}" fill="rgba(14,20,27,.9)" stroke="#D8AC4E" stroke-width="2"/><text x="${f1(cx)}" y="${f1(cy)}" text-anchor="middle" dominant-baseline="central" style="font-size:${f1(Math.min(w,h)*.26)}px">${B[id].ic}</text>`:''}</svg>`}
 function openPlotPick(plotKey){UI.pickPlot=plotKey;const avail=Object.keys(B).filter(id=>!(id in S.plot));
   let h=`<div class="sheetTitle">מגרש פנוי</div><p class="small mute">בחר איזה מבנה להקים במקום הזה.</p>`;
   if(!avail.length)h+=`<div class="empty">כל סוגי המבנים כבר מוקמו בעיר.</div>`;
