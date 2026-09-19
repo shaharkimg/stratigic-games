@@ -183,6 +183,9 @@ nav#tabs button.on img{box-shadow:0 0 0 2px #D8AC4E,0 0 12px rgba(216,172,78,.5)
 .cvN{font-family:var(--serif);font-weight:700;font-size:18px;fill:#F4ECD8}
 .cvS{font-family:var(--sans);font-size:13.5px;fill:#D6CCB2;font-weight:600}.cvS.dim{fill:#C7B58A}.cvS.gold{fill:#F2C766}
 .cvWork{fill:none;stroke:#E6B64E;stroke-width:3;stroke-dasharray:12 8;opacity:.55}.cvWork.on{opacity:1;animation:dash 1.2s linear infinite}
+.cvRing{animation:ringPulse 2.4s ease-in-out infinite}.cvRing text{fill:#F3EAD2}
+@keyframes ringPulse{0%,100%{opacity:1}50%{opacity:.78}}
+@media (prefers-reduced-motion:reduce){.cvRing{animation:none}}
 @keyframes dash{to{stroke-dashoffset:-40}}
 .cvCity{font-family:var(--serif);font-weight:900;font-size:26px;fill:#F4ECD8;letter-spacing:.5px}
 .cvSub{font-family:var(--serif);font-size:15px;fill:#E6DCC4}
@@ -200,6 +203,8 @@ nav#tabs button.on img{box-shadow:0 0 0 2px #D8AC4E,0 0 12px rgba(216,172,78,.5)
 .cChip{display:flex;align-items:center;gap:6px;background:rgba(14,20,27,.86);border:1px solid rgba(214,172,78,.45);color:#EDE3CA;border-radius:10px;padding:4px 10px 4px 8px;font-size:13px;box-shadow:0 4px 14px rgba(0,0,0,.35)}
 .cChip img{width:20px;height:20px}.cChip b{font-size:14px}.cChip span{color:#B9B19C;font-size:12px}
 .cChip.bad{border-color:#E07560;color:#F5B5A5}
+.cChip.mile{flex-direction:column;align-items:stretch;gap:3px;min-width:120px}
+.miniBar{height:4px;border-radius:2px;background:rgba(255,255,255,.15);overflow:hidden}.miniBar i{display:block;height:100%;background:var(--gold);border-radius:2px}
 .cTopR{position:absolute;top:10px;right:10px;max-width:60%}
 .cDec{display:flex;align-items:center;gap:8px;text-align:start;background:linear-gradient(#4A3A16,#2C2210);border:1.5px solid #E6B64E;color:#F6E7BF;border-radius:12px;padding:7px 12px;cursor:pointer;box-shadow:0 0 18px rgba(230,182,78,.35),0 4px 14px rgba(0,0,0,.4);font-size:14px}
 .cDec i{font-style:normal;font-size:20px}.cDec .t{display:flex;flex-direction:column;min-width:0}.cDec small{font-size:12px;color:#E0CD9C;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -491,6 +496,11 @@ function soldiers(){let n=0;for(const u in S.units)n+=S.units[u];S.moves.forEach
 function housing(){return 150+70*S.b.housing+25*S.b.townhall+120*S.outposts.filter(o=>o.type==='colony').length}
 function cap(k){if(k==='gold')return 1e9;if(k==='food')return 700+500*S.b.granary;return 700+500*S.b.warehouse}
 function stage(){let s=0;STAGES.forEach((st,i)=>{if(S.pop+soldiers()>=st[1]&&S.b.townhall>=st[2])s=i});return s}
+function nextMilestoneHtml(){const s=stage();if(s>=STAGES.length-1)return'';
+  const[name,popReq,thReq]=STAGES[s+1];const cur=S.pop+soldiers();const thOk=S.b.townhall>=thReq;
+  const inner=thOk?`<div class="miniBar"><i style="width:${Math.min(100,Math.round(cur/popReq*100))}%"></i></div><span class="small">${fmt(cur)}/${fmt(popReq)} תושבים</span>`
+    :`<span class="small">דורש מרכז הכפר רמה ${thReq}</span>`;
+  return`<div class="cChip mile"><span class="small mute">לקראת ${name}</span>${inner}</div>`}
 function haveOf(k){return k in S.res?S.res[k]:(S.goods[k]||0)}
 function canPay(c){for(const k in c)if(haveOf(k)<c[k]-1e-6)return false;return true}
 function pay(c){for(const k in c){if(k in S.res)S.res[k]-=c[k];else S.goods[k]-=c[k]}}
@@ -1179,6 +1189,13 @@ function bSpriteImg(id,plotKey){
   bx=Math.max(4,Math.min(bx,CV_W-bw-4));by=Math.max(4,Math.min(by,CV_H-bh-4));
   return `<use href="#simg_${id}" x="${f1(bx)}" y="${f1(by)}" width="${f1(bw)}" height="${f1(bh)}" preserveAspectRatio="xMidYMax meet"/>`;
 }
+function progressRingSvg(cx,cy,pct){const p=clamp(pct,0,1),r=22,circ=2*Math.PI*r,dash=circ*p;
+  return`<g class="cvRing" transform="translate(${f1(cx)} ${f1(cy)})">
+    <circle r="${r}" fill="rgba(14,20,27,.75)"/>
+    <circle r="${r}" fill="none" stroke="rgba(230,200,140,.3)" stroke-width="4"/>
+    <circle r="${r}" fill="none" stroke="#E6B64E" stroke-width="4" stroke-linecap="round" stroke-dasharray="${f1(dash)} ${f1(circ)}" transform="rotate(-90)"/>
+    <text text-anchor="middle" dominant-baseline="central" class="cvN" style="font-size:15px">${Math.round(p*100)}%</text>
+  </g>`}
 function scene(){cvDefsInstall();const q0=S.queue[0];let dim='',hit='',lab='',work='';
   Object.keys(REG).forEach(plotKey=>{
     const id=plotOf(plotKey);
@@ -1194,6 +1211,11 @@ function scene(){cvDefsInstall();const q0=S.queue[0];let dim='',hit='',lab='',wo
     else if(hasSprite){dim+=`<g clip-path="url(#cp_${plotKey})"><use href="#cimgBase"/></g>${bSpriteImg(id,plotKey)}`}
     else if(mismatch){dim+=`<g clip-path="url(#cp_${plotKey})"><use href="#cimgBase"/><rect x="0" y="0" width="${CV_W}" height="${CV_H}" fill="rgba(14,20,27,.55)"/></g>`}
     if(bq||planned)work+=REG[plotKey].map(p=>`<polygon points="${regPts(p)}" class="cvWork${bq?' on':''}"/>`).join('');
+    if(bq){const[rx,ry,rw,rh]=regBox(plotKey);
+      work+=`<g clip-path="url(#cp_${plotKey})"><rect x="0" y="0" width="${CV_W}" height="${CV_H}" fill="url(#pHatch)" opacity=".5"/></g>`;
+      const dur=bTime(q0.b,q0.l),start=q0.end-dur,pct=dur>0?(nowT()-start)/dur:1;
+      work+=progressRingSvg(rx+rw/2,ry+rh/2,pct);
+    }
     const[x,y0,bw]=LBL[plotKey];const y=y0-CV_Y;const name=(l&&mismatch?B[id].ic+' ':'')+(l?tierName(id,l):PLABEL[id]);const sub=bq?`⚒ בבנייה · ${fmtDur(q0.end-nowT())}`:l?`רמה ${l}`:'לא נבנה · לבנות';
     hit+=`<g class="cvHit" data-act="bsheet" data-id="${id}" role="button" tabindex="0" aria-label="${esc(name)} — ${esc(sub)}">${REG[plotKey].map(p=>`<polygon points="${regPts(p)}"/>`).join('')}</g>`;
     const w=Math.max(bw+14,name.length*10.5+26,sub.length*7.2+22),h=50;
@@ -1237,7 +1259,7 @@ function renderCity(){const scr=$('#screen');
     <div class="cBottom" id="cBottom"></div></div>`;cm=$('#cityMap');SCENE_SIG='';bindCityMap(cm)}
   const sig=sceneSig();if(sig!==SCENE_SIG){$('#cityLayer').innerHTML=scene();SCENE_SIG=sig;if(!UI.cview)cityFit(true);applyCView()}
   const q=S.queue[0];const R=rates();const net=R.r.food;
-  $('#cStats').innerHTML=`<div class="cChip"><img src="${ICONS.pop}" alt=""><b>${fmt(S.pop)}</b><span>${STAGES[stage()][0]}</span></div><div class="cChip"><img src="${ICONS.happy}" alt=""><b>${Math.round(avgSat())}%</b><span>שביעות רצון</span></div>${net<0?`<div class="cChip bad">⚠ המזון ייגמר בעוד ${fmtDur(S.res.food/(-net))}</div>`:''}`;
+  $('#cStats').innerHTML=`<div class="cChip"><img src="${ICONS.pop}" alt=""><b>${fmt(S.pop)}</b><span>${STAGES[stage()][0]}</span></div><div class="cChip"><img src="${ICONS.happy}" alt=""><b>${Math.round(avgSat())}%</b><span>שביעות רצון</span></div>${net<0?`<div class="cChip bad">⚠ המזון ייגמר בעוד ${fmtDur(S.res.food/(-net))}</div>`:''}${nextMilestoneHtml()}`;
   $('#cAlert').innerHTML=S.dec.length?`<button class="cDec" data-act="bell"><i>🔔</i><span class="t"><b>${S.dec.length===1?'החלטה ממתינה':S.dec.length+' החלטות ממתינות'}</b><small>${esc(DEC[S.dec[0].type](S.dec[0].data).title)}</small></span></button>`:'';
   $('#cBottom').innerHTML=`<button class="cCard" data-act="cpanel"><div class="cCardT">${q&&q.end!=null?`⚒ ${esc(tierName(q.b,q.l))} — רמה ${q.l}`:q?`⏳ ממתין למשאבים: ${esc(tierName(q.b,q.l))}`:'אין בנייה כרגע'}</div>
     <div class="cCardS">${q&&q.end!=null?`עוד <span data-end="${q.end}"></span>${S.queue.length>1?` · ועוד ${S.queue.length-1} בתוכנית`:''}`:'גע במבנה בעיר כדי לבנות או לשדרג'}</div>${q&&q.end!=null?`<div class="pbar"><i data-s="${q.end-bTime(q.b,q.l)}" data-e="${q.end}"></i></div>`:''}</button>
