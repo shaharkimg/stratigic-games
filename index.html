@@ -19,7 +19,7 @@
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.45;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
 button{font-family:inherit;font-size:inherit;color:inherit}
-button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 #app{display:flex;flex-direction:column;height:100dvh;max-width:1440px;margin:0 auto;position:relative;overflow:hidden}
 header#top{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;padding:10px 14px 6px;border-bottom:1px solid var(--line);background:var(--panel)}
 .brand{min-width:0}
@@ -113,7 +113,9 @@ p{margin:0 0 8px}
 #sheetWrap.on{display:flex}
 #sheet{background:linear-gradient(180deg,var(--panel2),var(--panel) 40%);width:100%;max-width:780px;max-height:86dvh;overflow-y:auto;border-radius:18px 18px 0 0;padding:6px 16px 22px;box-shadow:var(--shadow);animation:up .22s ease-out;border-top:3px solid var(--gold)}
 @keyframes up{from{transform:translateY(40px);opacity:.6}to{transform:none;opacity:1}}
-@media (prefers-reduced-motion:reduce){#sheet{animation:none}.pbar i{transition:none}}
+@media (prefers-reduced-motion:reduce){#sheet{animation:none}.pbar i{transition:none}.pulse{animation:none!important}}
+@keyframes pulseFlash{0%{transform:scale(1.16);filter:brightness(1.45)}100%{transform:scale(1);filter:brightness(1)}}
+.pulse{animation:pulseFlash .5s ease-out}
 .grab{width:40px;height:4px;border-radius:2px;background:rgba(237,227,202,.3);margin:4px auto 10px}
 .sheetTitle{font-family:var(--serif);font-weight:900;font-size:22px;margin:0 0 4px}
 .opt{display:block;width:100%;text-align:right;border:1px solid var(--line);background:var(--panel2);border-radius:11px;padding:10px 12px;margin-top:8px;cursor:pointer;transition:border-color .15s,background .15s}
@@ -127,6 +129,7 @@ input[type=text]{width:100%;padding:9px 11px;border-radius:9px;border:1px solid 
 .report .ln{padding:3px 0;border-bottom:1px dotted var(--line)}
 #toasts{position:fixed;left:50%;transform:translateX(-50%);top:132px;z-index:60;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;width:92%;max-width:520px}
 .toast{background:rgba(15,22,29,.96);color:var(--text);border:1px solid var(--lineGold);padding:8px 14px;border-radius:10px;font-size:14px;box-shadow:var(--shadow);animation:up .2s ease-out;text-align:center}
+.toast.err{border-color:var(--bad);border-width:1.5px}
 /* intro */
 #intro{position:fixed;inset:0;z-index:70;background:linear-gradient(rgba(8,12,16,.72),rgba(8,12,16,.9) 46%,var(--bg) 76%),var(--cityimg,none) center 28%/cover no-repeat,var(--bg);overflow-y:auto;display:none}
 #intro.on{display:block}
@@ -235,6 +238,30 @@ const ICONS={"food": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABQCAIA
 'use strict';
 /* ================= EMPIRES · עמק הנהרות — סימולציה ================= */
 const HOUR_MS=2000, SEASON_DAYS=40, SAVE_KEY='empires_riverlands_v1';
+const SAVE_SCHEMA_VERSION=1;
+// Historically these field-presence patches ran unconditionally on every
+// boot (the old `v:1` sentinel was never actually bumped when they were
+// added, so it can't be trusted to gate them) — kept as an always-run,
+// idempotent normalize step for that reason. New migrations that only
+// apply going forward belong in MIGRATIONS below instead, gated on a real
+// version bump.
+function normalizeSave(s){
+  if(s.b&&s.b.castle==null)s.b.castle=0;
+  if(s.spec===undefined){s.spec=null;s.specAt=0}
+  if(!s.plot){s.plot={};Object.keys(B).forEach(id=>{if(s.b[id]>0)s.plot[id]=id})}
+}
+const MIGRATIONS=[
+  // {to:2, migrate(s){...}} — add future version-gated steps here.
+];
+function migrateSave(data){
+  if(!data||typeof data!=='object'||!data.b)return null;
+  normalizeSave(data);
+  let v=data.v||0;
+  for(const step of MIGRATIONS)if(v<step.to){step.migrate(data);v=step.to}
+  data.v=Math.max(v,SAVE_SCHEMA_VERSION);
+  return data;
+}
+if(typeof window!=='undefined')window.migrateSave=migrateSave;
 const W=15, HH=12;
 const RES=['food','wood','stone','iron','gold'];
 const RN={food:'מזון',wood:'עץ',stone:'אבן',iron:'ברזל',gold:'זהב'};
@@ -429,8 +456,15 @@ function genMap(){
 
 /* ================= new game ================= */
 let S=null;
+// Test-only hooks: `S` is a top-level `let`, so it isn't reachable from
+// outside this script (e.g. a Node vm context running it for unit tests)
+// the way `window.X` assignments are. These do nothing unusual at runtime
+// in the browser — they just mirror the current binding — and let tests
+// set up game state precisely without going through newGame()'s full
+// random-city generation.
+if(typeof window!=='undefined'){window.__setS=v=>{S=v};window.__getS=()=>S}
 function newGame(site,cityName,ruler){
-  S={v:1,t:6,site,cityName,ruler,home:{c:SITES[site].c,r:SITES[site].r},tiles:genMap(),
+  S={v:SAVE_SCHEMA_VERSION,t:6,site,cityName,ruler,home:{c:SITES[site].c,r:SITES[site].r},tiles:genMap(),
     res:{food:260,wood:220,stone:120,iron:30,gold:80},goods:{horses:0,salt:0,wine:0,spices:0},
     pop:120,b:{castle:0,townhall:1,farm:0,lumber:0,housing:0,quarry:0,mine:0,market:0,warehouse:0,granary:0,barracks:0,stable:0,walls:0,watchtower:0,academy:0,port:0},
     plot:{townhall:'townhall'},
@@ -456,6 +490,32 @@ function stage(){let s=0;STAGES.forEach((st,i)=>{if(S.pop+soldiers()>=st[1]&&S.b
 function haveOf(k){return k in S.res?S.res[k]:(S.goods[k]||0)}
 function canPay(c){for(const k in c)if(haveOf(k)<c[k]-1e-6)return false;return true}
 function pay(c){for(const k in c){if(k in S.res)S.res[k]-=c[k];else S.goods[k]-=c[k]}}
+// Central pre-flight check for any economic action (build, place, trade,
+// research, recruit, ...). Pure/no side effects — it only reports whether
+// an action WOULD succeed and why not, so callers can disable a button up
+// front instead of letting the player click into a toast. The functions
+// that actually perform the action (enqueue, mkt, acceptOffer, ...) keep
+// their own final canPay()/return-string-on-failure checks as the source
+// of truth; ActionGuard is a read-only preview of the same rules for the UI.
+//   cost: {resKey:amount} | null
+//   requirements: [{ok:boolean, label:string}] | null — e.g. level caps, queue slots
+//   expiry: {at:number, now?:number} | null — timestamp (game time) this action expires at
+const ActionGuard={
+  check({cost,requirements,expiry}={}){
+    const missingResources=[];
+    if(cost)for(const k in cost){const have=haveOf(k);if(have<cost[k]-1e-6)missingResources.push({key:k,have,need:cost[k]})}
+    const unmetRequirements=(requirements||[]).filter(r=>!r.ok).map(r=>r.label);
+    if(expiry&&(expiry.now!=null?expiry.now:nowT())>=expiry.at)unmetRequirements.push('ההצעה פגה');
+    const canExecute=missingResources.length===0&&unmetRequirements.length===0;
+    let userMessage=null;
+    if(!canExecute){
+      if(unmetRequirements.length)userMessage=unmetRequirements[0];
+      else{const m=missingResources[0];userMessage=`חסר ${NAME(m.key)}: יש ${fmt(m.have)}, צריך ${fmt(m.need)}`}
+    }
+    return{canExecute,missingResources,unmetRequirements,userMessage};
+  }
+};
+if(typeof window!=='undefined')window.ActionGuard=ActionGuard;
 function gain(g,m=1){for(const k in g){if(k in S.res)S.res[k]=Math.min(cap(k),S.res[k]+g[k]*m);else S.goods[k]=(S.goods[k]||0)+Math.round(g[k]*m)}}
 function hasOutFeat(f){return S.outposts.some(o=>{const t=T(o.c,o.r);return t.f&&t.f.f===f})}
 function inBlocWith(id){if(S.bloc&&S.bloc!=='own'&&BLOCS[S.bloc].members.includes(id))return true;if(S.bloc==='own'&&S.own&&S.own.members.includes(id))return true;return false}
@@ -589,6 +649,21 @@ function uval(k){if(k==='gold')return 1;if(S.market[k])return S.market[k].p/10;r
 function fee(){let f=.10;if(has('guild'))f=.04;if(dist('merchant'))f-=.03;if(S.bloc)f-=.02;return Math.max(.02,f)}
 function mkt(k,side,amt){if(S.b.market<1)return'דרוש שוק';const p=S.market[k].p/10;if(side==='sell'){if(S.res[k]<amt)return'אין מספיק';S.res[k]-=amt;const g=amt*p*(1-fee());S.res.gold+=g;S.market[k].p*=Math.pow(.985,amt/50);S.stats.tradeVol+=g;S.flags.tv=(S.flags.tv||0)+g}
   else{const g=amt*p*(1+fee());if(S.res.gold<g)return'אין מספיק זהב';if(S.res[k]+amt>cap(k))return'אין מקום באחסון';S.res.gold-=g;S.res[k]+=amt;S.market[k].p*=Math.pow(1.015,amt/50);S.stats.tradeVol+=g;S.flags.tv=(S.flags.tv||0)+g}return null}
+// Pure preview math for the market UI — mirrors mkt()'s pricing exactly but
+// makes no changes, so buttons can show/guard the real numbers up front.
+function mktUnit(k){return S.market[k].p/10}
+function mktQuote(k,side,amt){
+  const unit=mktUnit(k),f=fee(),gross=amt*unit;
+  return side==='sell'?{unit,fee:f,gross,total:gross*(1-f)}:{unit,fee:f,gross,total:gross*(1+f)};
+}
+function mktMax(k,side){
+  if(side==='sell')return Math.max(0,Math.floor(haveOf(k)));
+  const unitWithFee=mktUnit(k)*(1+fee());
+  const byGold=unitWithFee>0?Math.floor(S.res.gold/unitWithFee):0;
+  const bySpace=Math.max(0,Math.floor(cap(k)-(S.res[k]||0)));
+  return Math.max(0,Math.min(byGold,bySpace));
+}
+if(typeof window!=='undefined'){window.mktQuote=mktQuote;window.mktMax=mktMax;window.mktUnit=mktUnit}
 function genOffer(n){
   const want=pick(n.need),theirs=pick(n.sur.concat(n.goods||[]));if(want===theirs)return;
   let aw=Math.round(ri(6,16)*(1+day()/15))*10;if(want==='gold')aw=Math.round(aw*.5/10)*10;
@@ -912,7 +987,7 @@ const DEC={
 const UI={labels:true,screen:'city',rtab:'trade',layer:'terrain',view:null,dirty:true,mapDirty:true,lastRender:0,pdown:false,disp:null,rq:{},chronF:'all',sheet:null};
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-function toast(msg){const box=$('#toasts');if(box.children.length>=3)box.firstChild.remove();const d=document.createElement('div');d.className='toast';d.textContent=msg;box.appendChild(d);setTimeout(()=>d.remove(),3600)}
+function toast(msg,opts){const box=$('#toasts');if(box.children.length>=3)box.firstChild.remove();const d=document.createElement('div');d.className='toast'+(opts&&opts.err?' err':'');d.textContent=msg;box.appendChild(d);setTimeout(()=>d.remove(),opts&&opts.err?6000:3600)}
 hookFn.toast=toast;hookFn.dirty=()=>UI.dirty=true;hookFn.map=()=>{UI.mapDirty=true;UI.dirty=true};hookFn.dec=()=>UI.dirty=true;
 hookFn.chron=(t,imp,mine)=>{if(imp>=3)toast(t.length>90?t.slice(0,88)+'…':t)};
 hookFn.report=r=>toast(`${r.win?'⚔️':'🩸'} ${r.title} — הדוח בלשונית צבא`);
@@ -933,6 +1008,7 @@ function renderTop(){if(!S)return;$('#cityTitle').textContent=S.cityName;$('#cit
   $('#speed').innerHTML=[[0,'❚❚'],[1,'1×'],[3,'3×'],[10,'10×']].map(([v,l])=>`<button data-act="speed" data-v="${v}" class="${S.speed===v?'on':''}" aria-label="מהירות ${l}">${l}</button>`).join('');
   const b=$('#bell');b.textContent=S.dec.length?`🔔 ${S.dec.length}`:'🔔';b.className=S.dec.length?'hot':'';b.dataset.act='bell';
   const cur=UI.screen!=='realm'?UI.screen:({research:'research',army:'military',trade:'economy'}[UI.rtab]||'realm');document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x.dataset.s===cur))}
+function pulseRes(k){const el=document.querySelector(`#resbar [data-k="${k}"]`);if(!el)return;el.classList.remove('pulse');void el.offsetWidth;el.classList.add('pulse')}
 function renderRes(){const R=rates();$('#resbar').innerHTML=RES.map(k=>{const v=S.res[k],c=cap(k),r=R.r[k];const full=k!=='gold'&&v>=c*.97;
   return`<button class="rc ${full?'full':''}" data-act="resinfo" data-k="${k}" aria-label="${RN[k]}"><img src="${ICONS[k]}" alt=""><span class="v">${fmt(v)}</span><span class="d ${r<0?'neg':''}">${r>=0?'+':''}${r.toFixed(1)}/h</span>${k!=='gold'?`<div class="bar"><i style="width:${Math.min(100,v/c*100)}%"></i></div>`:''}</button>`}).join('')}
 
@@ -1103,9 +1179,9 @@ function scene(){cvDefsInstall();const q0=S.queue[0];let dim='',hit='',lab='',wo
     const id=plotOf(plotKey);
     if(!id){
       dim+=`<g clip-path="url(#cp_${plotKey})"><use href="#cimgBase"/><rect x="0" y="0" width="${CV_W}" height="${CV_H}" fill="rgba(10,16,22,.4)"/></g>${REG[plotKey].map(p=>`<polygon points="${regPts(p)}" fill="none" stroke="rgba(230,200,140,.5)" stroke-width="2" stroke-dasharray="10 7"/>`).join('')}`;
-      hit+=`<g class="cvHit" data-act="plotpick" data-plot="${plotKey}">${REG[plotKey].map(p=>`<polygon points="${regPts(p)}"/>`).join('')}</g>`;
+      hit+=`<g class="cvHit" data-act="plotpick" data-plot="${plotKey}" role="button" tabindex="0" aria-label="מגרש פנוי — לחץ לבחירת מבנה">${REG[plotKey].map(p=>`<polygon points="${regPts(p)}"/>`).join('')}</g>`;
       const[x,y0]=LBL[plotKey];const y=y0-CV_Y;
-      lab+=`<g class="cvLbl" data-act="plotpick" data-plot="${plotKey}"><circle cx="${x}" cy="${f1(y-6)}" r="17" fill="rgba(14,20,27,.92)" stroke="rgba(230,200,140,.55)" stroke-width="1.5"/><text x="${x}" y="${f1(y-1)}" text-anchor="middle" class="cvN" style="font-size:20px">+</text><text x="${x}" y="${f1(y+22)}" text-anchor="middle" direction="rtl" class="cvS dim">מגרש פנוי · לבנות</text></g>`;
+      lab+=`<g class="cvLbl" data-act="plotpick" data-plot="${plotKey}" aria-hidden="true"><circle cx="${x}" cy="${f1(y-6)}" r="17" fill="rgba(14,20,27,.92)" stroke="rgba(230,200,140,.55)" stroke-width="1.5"/><text x="${x}" y="${f1(y-1)}" text-anchor="middle" class="cvN" style="font-size:20px">+</text><text x="${x}" y="${f1(y+22)}" text-anchor="middle" direction="rtl" class="cvS dim">מגרש פנוי · לבנות</text></g>`;
       return;
     }
     const l=S.b[id]||0;const bq=q0&&q0.end!=null&&q0.b===id;const planned=S.queue.some(q=>q.b===id);const mismatch=id!==plotKey;const hasSprite=!!BSPRITE[id];
@@ -1113,14 +1189,14 @@ function scene(){cvDefsInstall();const q0=S.queue[0];let dim='',hit='',lab='',wo
     else if(hasSprite){dim+=`<g clip-path="url(#cp_${plotKey})"><use href="#cimgBase"/></g>${bSpriteImg(id,plotKey)}`}
     else if(mismatch){dim+=`<g clip-path="url(#cp_${plotKey})"><use href="#cimgBase"/><rect x="0" y="0" width="${CV_W}" height="${CV_H}" fill="rgba(14,20,27,.55)"/></g>`}
     if(bq||planned)work+=REG[plotKey].map(p=>`<polygon points="${regPts(p)}" class="cvWork${bq?' on':''}"/>`).join('');
-    hit+=`<g class="cvHit" data-act="bsheet" data-id="${id}">${REG[plotKey].map(p=>`<polygon points="${regPts(p)}"/>`).join('')}</g>`;
     const[x,y0,bw]=LBL[plotKey];const y=y0-CV_Y;const name=(l&&mismatch?B[id].ic+' ':'')+(l?tierName(id,l):PLABEL[id]);const sub=bq?`⚒ בבנייה · ${fmtDur(q0.end-nowT())}`:l?`רמה ${l}`:'לא נבנה · לבנות';
+    hit+=`<g class="cvHit" data-act="bsheet" data-id="${id}" role="button" tabindex="0" aria-label="${esc(name)} — ${esc(sub)}">${REG[plotKey].map(p=>`<polygon points="${regPts(p)}"/>`).join('')}</g>`;
     const w=Math.max(bw+14,name.length*10.5+26,sub.length*7.2+22),h=50;
-    if(UI.labels||!l||bq)lab+=`<g class="cvLbl" data-act="bsheet" data-id="${id}"><rect x="${f1(x-w/2)}" y="${f1(y-h/2)}" width="${f1(w)}" height="${h}" rx="7" fill="rgba(14,20,27,.97)" stroke="${bq?'#E6B64E':!l?'rgba(230,200,140,.35)':'rgba(214,172,78,.5)'}" stroke-width="${bq?2.2:1.2}"/>
+    if(UI.labels||!l||bq)lab+=`<g class="cvLbl" data-act="bsheet" data-id="${id}" aria-hidden="true"><rect x="${f1(x-w/2)}" y="${f1(y-h/2)}" width="${f1(w)}" height="${h}" rx="7" fill="rgba(14,20,27,.97)" stroke="${bq?'#E6B64E':!l?'rgba(230,200,140,.35)':'rgba(214,172,78,.5)'}" stroke-width="${bq?2.2:1.2}"/>
       <text x="${x}" y="${f1(y-3)}" text-anchor="middle" direction="rtl" class="cvN">${esc(name)}</text><text x="${x}" y="${f1(y+16)}" text-anchor="middle" direction="rtl" class="cvS${!l?' dim':''}${bq?' gold':''}">${sub}</text></g>`;
-    else lab+=`<g class="cvLbl" data-act="bsheet" data-id="${id}"><rect x="${f1(x-w/2)}" y="${f1(y-h/2)}" width="${f1(w)}" height="${h}" rx="7" fill="rgba(14,20,27,.9)"/><circle cx="${x}" cy="${y}" r="15" fill="rgba(14,20,27,.92)" stroke="rgba(214,172,78,.7)" stroke-width="1.5"/><text x="${x}" y="${f1(y+6)}" text-anchor="middle" class="cvN">${l}</text></g>`});
-  const crest=`<g mask="url(#mCrest)"><use href="#cimg" transform="translate(-290,0)"/></g>`;
-  const panel=`<g mask="url(#mPanel)"><use href="#cimg" transform="translate(305,0)"/></g>`;
+    else lab+=`<g class="cvLbl" data-act="bsheet" data-id="${id}" aria-hidden="true"><rect x="${f1(x-w/2)}" y="${f1(y-h/2)}" width="${f1(w)}" height="${h}" rx="7" fill="rgba(14,20,27,.9)"/><circle cx="${x}" cy="${y}" r="15" fill="rgba(14,20,27,.92)" stroke="rgba(214,172,78,.7)" stroke-width="1.5"/><text x="${x}" y="${f1(y+6)}" text-anchor="middle" class="cvN">${l}</text></g>`});
+  const crest=`<g mask="url(#mCrest)" style="pointer-events:none"><use href="#cimg" transform="translate(-290,0)"/></g>`;
+  const panel=`<g mask="url(#mPanel)" style="pointer-events:none"><use href="#cimg" transform="translate(305,0)"/></g>`;
   return`<svg class="cv" width="${CV_W}" height="${CV_H}" viewBox="0 0 ${CV_W} ${CV_H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="מבט על ${esc(S.cityName)}"><use href="#cimg"/>${dim}${work}${hit}${lab}${crest}${panel}</svg>`}
 function bMiniSvg(id){cvDefsInstall();const pk=S.plot[id];if(!pk)return'';const[x,y,w,h]=regBox(pk);const pad=30;const vb=[x-pad,y-pad,w+pad*2,h+pad*2];const l=S.b[id]||0;const mismatch=l&&id!==pk;const cx=x+w/2,cy=y+h/2;
   return`<svg class="cvMini" viewBox="${vb.map(f1).join(' ')}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"><use href="#cimg"/><g opacity=".55"><use href="#cimg" filter="url(#fDim)"/></g><g clip-path="url(#cp_${pk})"><use href="#cimg" ${l?'':'filter="url(#fDim)"'}/>${mismatch?`<rect x="0" y="0" width="${CV_W}" height="${CV_H}" fill="rgba(14,20,27,.55)"/>`:''}</g>${REG[pk].map(p=>`<polygon points="${regPts(p)}" fill="none" stroke="#E6B64E" stroke-width="3" stroke-dasharray="${l?'0':'10 7'}"/>`).join('')}${mismatch?`<circle cx="${f1(cx)}" cy="${f1(cy)}" r="${f1(Math.min(w,h)*.22)}" fill="rgba(14,20,27,.9)" stroke="#D8AC4E" stroke-width="2"/><text x="${f1(cx)}" y="${f1(cy)}" text-anchor="middle" dominant-baseline="central" style="font-size:${f1(Math.min(w,h)*.26)}px">${B[id].ic}</text>`:''}</svg>`}
@@ -1261,6 +1337,24 @@ const RT=[['trade','מסחר'],['army','צבא'],['research','מחקר'],['diplo
 function renderRealm(){const scr=$('#screen');scr.className='';
   let h=`<div class="subtabs">${RT.map(([k,l])=>`<button data-act="rtab" data-v="${k}" class="${UI.rtab===k?'on':''}">${l}</button>`).join('')}</div><div class="wrap">`;
   h+={trade:rTrade,army:rArmy,research:rResearch,diplo:rDiplo,gov:rGov,chron:rChron}[UI.rtab]();scr.innerHTML=h+`</div>`}
+function mktBtnHtml(k,side,amount,label){
+  const quote=mktQuote(k,side,amount);
+  const cost=side==='sell'?{[k]:amount}:{gold:quote.total};
+  const reqs=[{ok:amount>0,label:side==='sell'?'אין מה למכור':'אין מקום לקנות עוד'}];
+  if(side==='buy')reqs.push({ok:S.res[k]+amount<=cap(k),label:'אין מקום באחסון'});
+  const g=ActionGuard.check({cost,requirements:reqs});
+  const sign=side==='sell'?'+':'-';
+  return`<button class="btn sm ${side==='sell'?'ghost':''}" data-act="mkt" data-k="${k}" data-s="${side}" data-a="${amount}" ${g.canExecute?'':'disabled'} title="${g.canExecute?'':esc(g.userMessage)}">${esc(label)} <span class="small">(${sign}${fmt(quote.total)} 🪙)</span></button>`;
+}
+function mktRowHtml(k){
+  const m=S.market[k],tr=m.p/m.b,unit=mktUnit(k),sellMax=mktMax(k,'sell'),buyMax=mktMax(k,'buy');
+  const sellBtns=[50,200].map(a=>mktBtnHtml(k,'sell',a,`מכור ${a}`)).join('')+mktBtnHtml(k,'sell',sellMax,`מכור הכול (${fmt(sellMax)})`);
+  const buyBtns=[50,200].map(a=>mktBtnHtml(k,'buy',a,`קנה ${a}`)).join('')+mktBtnHtml(k,'buy',buyMax,`קנה מקסימום (${fmt(buyMax)})`);
+  return`<div class="it" data-mkres="${k}"><div class="row between"><div>${RI[k]} <b>${RN[k]}</b> <span class="small">מחיר יחידה ${unit.toFixed(2)} 🪙 · עמלה ${Math.round(fee()*100)}%</span></div>
+    <span class="small" style="color:${tr>1.1?'var(--bad)':tr<.9?'var(--good)':'var(--mute)'}">${tr>1.1?'▲':tr<.9?'▼':''}</span></div>
+    <div class="small mute" style="margin-top:6px">מכירה</div><div class="row" style="gap:4px;flex-wrap:wrap">${sellBtns}</div>
+    <div class="small mute" style="margin-top:6px">קנייה</div><div class="row" style="gap:4px;flex-wrap:wrap">${buyBtns}</div></div>`;
+}
 function rTrade(){let h=`<h2>הצעות סחר</h2>`;
   if(!S.offers.length)h+=`<div class="empty">אין הצעות כרגע. יישובים שהכרת שולחים הצעות לפי מה שחסר להם ומה שיש להם בעודף.</div>`;
   else h+=`<div class="list">`+S.offers.map(o=>{const n=npc(o.npc);const vg=Object.entries(o.give).reduce((a,[k,v])=>a+v*uval(k),0),vr=Object.entries(o.get).reduce((a,[k,v])=>a+v*uval(k),0);const q=vr/vg;
@@ -1272,8 +1366,7 @@ function rTrade(){let h=`<h2>הצעות סחר</h2>`;
   const cv=S.moves.filter(m=>m.kind==='caravan'||m.kind==='cret');if(cv.length)h+=`<h2>שיירות בדרך</h2><div class="list">`+cv.map(m=>`<div class="it small">🐪 ${m.kind==='caravan'?'אל '+npc(m.npc).n+': '+costStr(m.give):'חוזרת מ'+npc(m.npc).n+': '+costStr(m.get)} — <span data-end="${m.t1}"></span><div class="pbar"><i data-s="${m.t0}" data-e="${m.t1}"></i></div></div>`).join('')+`</div>`;
   h+=`<h2>השוק האזורי</h2>`;
   if(S.b.market<1)h+=`<div class="empty">בנה דוכני שוק כדי לקנות ולמכור. אין כאן שוק עולמי — רק מה שהאזור צריך. המחירים זזים לפי היצע, ביקוש ומלחמות.</div>`;
-  else h+=`<p class="small mute">מחיר ל-10 יחידות. עמלה ${Math.round(fee()*100)}%.</p><div class="list">`+Object.keys(S.market).map(k=>{const m=S.market[k];const tr=m.p/m.b;return`<div class="it"><div class="row between"><div>${RI[k]} <b>${RN[k]}</b> <span class="small">${m.p.toFixed(1)} 🪙</span> <span class="small" style="color:${tr>1.1?'var(--bad)':tr<.9?'var(--good)':'var(--mute)'}">${tr>1.1?'▲':tr<.9?'▼':''}</span></div>
-    <div class="row" style="gap:4px"><button class="btn sm ghost" data-act="mkt" data-k="${k}" data-s="sell" data-a="50">מכור 50</button><button class="btn sm ghost" data-act="mkt" data-k="${k}" data-s="sell" data-a="200">200</button><button class="btn sm" data-act="mkt" data-k="${k}" data-s="buy" data-a="50">קנה 50</button></div></div></div>`}).join('')+`</div>`;
+  else h+=`<p class="small mute">בחר כמות למכירה או לקנייה: 50, 200 או הכול/מקסימום. כל כפתור מציג את הסכום הסופי כולל עמלה.</p><div class="list">`+Object.keys(S.market).map(mktRowHtml).join('')+`</div>`;
   h+=`<h2>סחורות אסטרטגיות</h2><div class="list">`+Object.entries(GOODS).map(([k,g])=>`<div class="it row between small"><span>${g[1]} <b>${g[0]}</b>: ${S.goods[k]||0}</span><span class="mute">${{horses:'לכל פרש, ופותח אורווה',salt:'מסע צבאי: טווח אספקה +2',wine:'כל יום: שביעות רצון +1',spices:'מותרות יקרות לסחר'}[k]}</span></div>`).join('')+`</div>`;
   return h}
 function rArmy(){const sold=soldiers();const att=armyPow(S.units,'att','plains');let h=`<h2>הצבא</h2><div class="card"><div class="kv small"><span>בבית</span><b>${unitsStr(S.units)}</b><span>כוח התקפה (במישור)</span><b>${fmt(att)}</b><span>הגנת העיר</span><b>${fmt(defPreview())}</b><span>אחזקה</span><b>${(sold*.06).toFixed(1)} מזון, ${(sold*.02).toFixed(1)} זהב בשעה</b></div></div>
@@ -1337,7 +1430,7 @@ function openAway(lastT,hrs){const ev=S.chron.filter(c=>c.t>lastT&&(c.mine||c.im
   openSheet(`<div class="sheetTitle">בזמן שלא היית כאן</div><p class="small mute">עברו ${fmtDur(hrs)} בעולם.</p><div class="list chron">${ev.map(c=>`<div class="it"><span class="ic">${c.ic}</span><div>${esc(c.txt)}</div></div>`).join('')||'<div class="empty">היה שקט בעמק.</div>'}</div>${S.dec.length?`<button class="btn gold" data-act="bell" style="margin-top:10px">${S.dec.length} החלטות ממתינות לך</button>`:''}`,'away')}
 
 /* ---------- actions ---------- */
-function err(e){if(e)toast(e);UI.dirty=true;return e}
+function err(e){if(e)toast(e,{err:true});UI.dirty=true;return e}
 const ACT={
   speed:d=>{S.speed=+d.v;renderTop()},
   bell:()=>openDec(),
@@ -1369,7 +1462,7 @@ const ACT={
   rtab:d=>{UI.rtab=d.v;$('#screen').scrollTop=0;render(true)},
   accept:d=>{if(!err(acceptOffer(+d.id))){toast('🐪 השיירה יצאה לדרך');render(true)}},
   decline:d=>{declineOffer(+d.id);render(true)},
-  mkt:d=>{if(!err(mkt(d.k,d.s,+d.a)))render(true)},
+  mkt:d=>{const e=mkt(d.k,d.s,+d.a);if(!err(e)){toast(d.s==='sell'?'🪙 נמכר בשוק':'🪙 נקנה בשוק');render(true);pulseRes(d.k);pulseRes('gold')}},
   rqs:d=>{UI.rq[d.u]=clamp((UI.rq[d.u]||5)+(+d.v),1,200);render(true)},
   recruit:d=>{const e=recruit(d.u,UI.rq[d.u]||5);if(!err(e)){toast(`${U[d.u].ic} האימון התחיל`);render(true)}},
   order:d=>{S.orders[d.k]=d.v;render(true)},
@@ -1391,7 +1484,11 @@ const ACT={
   sandbox:()=>{S.flags.sandbox=true;closeSheet()},
   newgame:()=>{if(confirm('להתחיל עונה חדשה? ההתקדמות הנוכחית תימחק.')){try{localStorage.removeItem(SAVE_KEY)}catch(e){}S=null;closeSheet();showIntro()}},
 };
-document.addEventListener('click',e=>{const el=e.target.closest('[data-act]');if(!el||el.disabled)return;if(el.closest('#mapSvg'))return;if(el.tagName==='g'&&e.defaultPrevented)return;const f=ACT[el.dataset.act];if(f){e.preventDefault();f(el.dataset)}});
+function dispatchActEl(el){const f=ACT[el.dataset.act];if(f)f(el.dataset)}
+document.addEventListener('click',e=>{const el=e.target.closest('[data-act]');if(!el||el.disabled)return;if(el.closest('#mapSvg'))return;if(el.tagName==='g'&&e.defaultPrevented)return;e.preventDefault();dispatchActEl(el)});
+// Keyboard activation for the SVG plot controls (role="button" + tabindex,
+// see scene()) — a real <button> gets Enter/Space for free, these do not.
+document.addEventListener('keydown',e=>{if(e.key!=='Enter'&&e.key!==' ')return;const el=e.target.closest('[role="button"][tabindex]');if(!el||el.closest('#mapSvg'))return;e.preventDefault();dispatchActEl(el)});
 document.querySelectorAll('#tabs button').forEach(b=>b.addEventListener('click',()=>{const s=b.dataset.s;const rt={realm:'diplo',research:'research',military:'army',economy:'trade'}[s];if(rt){UI.screen='realm';UI.rtab=rt}else UI.screen=s;$('#screen').scrollTop=0;render(true)}));
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('#mapSvg'))UI.pdown=true},true);
 document.addEventListener('pointerup',()=>{UI.pdown=false},true);
@@ -1433,9 +1530,9 @@ function showIntro(){const I=$('#intro');document.documentElement.style.setPrope
   $('#startBtn').onclick=()=>{newGame(pickSite,($('#inCity').value||'').trim()||'אלמור',($('#inRuler').value||'').trim()||'אריאל');I.classList.remove('on');UI.view=null;UI.screen='city';render(true);save();setTimeout(()=>openDec(),400)};
   if(saved)$('#cont').onclick=()=>{I.classList.remove('on');boot(true)}}
 function boot(fromSave){let data=null;try{data=JSON.parse(localStorage.getItem(SAVE_KEY))}catch(e){}
-  if(!data||data.v!==1){showIntro();return}
-  S=data;if(S.b.castle==null)S.b.castle=0;if(S.spec===undefined){S.spec=null;S.specAt=0}
-  if(!S.plot){S.plot={};Object.keys(B).forEach(id=>{if(S.b[id]>0)S.plot[id]=id})}
+  data=migrateSave(data);
+  if(!data||data.v>SAVE_SCHEMA_VERSION){showIntro();return}
+  S=data;
   updateVision();const lastT=S.t;const hrs=Math.min(48,Math.floor((Date.now()-S.seen)/HOUR_MS));
   for(let i=0;i<hrs;i++)stepHour();UI.screen='city';render(true);if(hrs>=4)openAway(lastT,hrs)}
 if((()=>{try{return !!localStorage.getItem(SAVE_KEY)}catch(e){return false}})())showIntro();else showIntro();

@@ -1,0 +1,17 @@
+{
+  "name": "empires-riverlands",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Empires: River Valley - single-file HTML5 strategy game",
+  "scripts": {
+    "lint": "eslint tests",
+    "test": "node --test tests/unit/**/*.test.js",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "eslint": "^9.13.0"
+  }
+}
