@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Empires: River Valley - single-file HTML5 strategy game",
   "scripts": {
-    "lint": "eslint tests",
+    "check:game": "node scripts/check-inline-script.mjs",
+    "lint": "eslint tests scripts && npm run check:game",
     "test": "node --test tests/unit/**/*.test.js",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
